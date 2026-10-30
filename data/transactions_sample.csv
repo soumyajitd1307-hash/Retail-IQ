@@ -1,0 +1,201 @@
+customer_id,order_id,transaction_date,category,quantity,amount,discount_percent,discount_amount,is_discounted,campaign_id,channel,persona_true
+C0123,O002196,2026-05-01,Beauty,1,918.57,0.0,0.0,0,,In-Store,Offer-Sensitive
+C0136,O002379,2026-05-01,Home & Kitchen,2,838.37,0.0,0.0,0,,Mobile App,At-Risk
+C0149,O002673,2026-05-02,Grocery,5,1025.86,0.0,0.0,0,,Online,Loyal
+C0065,O001201,2026-05-03,Clothing,4,646.6,41.98,467.86,1,,Online,Offer-Sensitive
+C0033,O000565,2026-05-04,Home & Kitchen,3,1279.0,0.0,0.0,0,,Mobile App,Occasional
+C0105,O001916,2026-05-05,Grocery,1,292.22,0.0,0.0,0,,In-Store,Occasional
+C0164,O002937,2026-05-05,Sports,1,550.34,0.0,0.0,0,,Online,At-Risk
+C0179,O003357,2026-05-05,Grocery,4,1331.65,0.0,0.0,0,,Online,Loyal
+C0148,O002652,2026-05-06,Beauty,1,1222.17,0.0,0.0,0,,Mobile App,At-Risk
+C0188,O003528,2026-05-06,Grocery,3,1428.81,0.0,0.0,0,,Mobile App,At-Risk
+C0177,O003288,2026-05-07,Home & Kitchen,3,306.05,35.01,164.88,1,,Online,Offer-Sensitive
+C0057,O001000,2026-05-08,Electronics,1,576.28,11.04,71.52,1,,Mobile App,At-Risk
+C0012,O000221,2026-05-09,Grocery,3,590.66,13.37,91.18,1,,Mobile App,At-Risk
+C0177,O003289,2026-05-09,Home & Kitchen,5,277.64,33.52,139.96,1,,Mobile App,Offer-Sensitive
+C0091,O001685,2026-05-10,Clothing,3,1848.17,0.0,0.0,0,,Online,Loyal
+C0103,O001863,2026-05-10,Home & Kitchen,4,2584.59,0.0,0.0,0,,In-Store,Loyal
+C0184,O003438,2026-05-11,Grocery,3,392.1,0.0,0.0,0,,Mobile App,Loyal
+C0070,O001282,2026-05-12,Sports,2,2740.63,0.0,0.0,0,,Online,Loyal
+C0164,O002938,2026-05-12,Beauty,3,289.92,12.19,40.24,1,,In-Store,At-Risk
+C0032,O000545,2026-05-14,Home & Kitchen,5,535.99,37.54,322.08,1,,Mobile App,Offer-Sensitive
+C0190,O003578,2026-05-14,Grocery,2,2001.21,0.0,0.0,0,,Mobile App,Loyal
+C0062,O001135,2026-05-15,Electronics,5,2156.66,0.0,0.0,0,,Online,Loyal
+C0076,O001407,2026-05-16,Sports,1,456.03,0.0,0.0,0,,Online,At-Risk
+C0165,O002954,2026-05-16,Home & Kitchen,1,939.01,0.0,0.0,0,,In-Store,Loyal
+C0188,O003530,2026-05-16,Clothing,4,1390.25,0.0,0.0,0,,Online,At-Risk
+C0071,O001316,2026-05-18,Electronics,1,468.92,0.0,0.0,0,,Mobile App,Occasional
+C0126,O002248,2026-05-18,Beauty,3,665.26,33.78,339.32,1,,Mobile App,Offer-Sensitive
+C0165,O002955,2026-05-18,Beauty,5,1073.78,8.34,97.66,1,,Mobile App,Loyal
+C0107,O001963,2026-05-19,Clothing,3,418.63,23.06,125.46,1,,Mobile App,At-Risk
+C0027,O000430,2026-05-20,Grocery,2,767.01,0.0,0.0,0,,In-Store,Loyal
+C0142,O002510,2026-05-20,Clothing,5,822.8,0.0,0.0,0,,Mobile App,Loyal
+C0169,O003029,2026-05-20,Grocery,5,1190.94,0.0,0.0,0,,Online,Loyal
+C0178,O003316,2026-05-20,Beauty,3,1038.9,0.0,0.0,0,,Mobile App,Loyal
+C0083,O001538,2026-05-21,Sports,2,1043.58,0.0,0.0,0,,Online,At-Risk
+C0186,O003474,2026-05-21,Home & Kitchen,3,2286.68,0.0,0.0,0,,Mobile App,Loyal
+C0141,O002467,2026-05-23,Clothing,4,3728.88,0.0,0.0,0,,Mobile App,Loyal
+C0065,O001205,2026-05-24,Electronics,1,396.43,43.37,303.63,1,,In-Store,Offer-Sensitive
+C0178,O003319,2026-05-24,Home & Kitchen,5,1502.51,0.0,0.0,0,,Online,Loyal
+C0054,O000949,2026-05-26,Grocery,2,1216.19,0.0,0.0,0,,In-Store,Loyal
+C0018,O000316,2026-05-28,Electronics,5,1424.33,0.0,0.0,0,,In-Store,Loyal
+C0151,O002722,2026-05-29,Clothing,2,2224.39,0.0,0.0,0,,In-Store,At-Risk
+C0041,O000677,2026-05-30,Electronics,2,264.82,0.0,0.0,0,,Mobile App,At-Risk
+C0043,O000728,2026-05-30,Beauty,5,1167.03,0.0,0.0,0,,Mobile App,Loyal
+C0059,O001045,2026-06-01,Sports,1,2379.87,0.0,0.0,0,,In-Store,Loyal
+C0164,O002941,2026-06-01,Beauty,4,334.25,0.0,0.0,0,,In-Store,At-Risk
+C0172,O003144,2026-06-01,Electronics,2,569.07,18.66,130.57,1,,In-Store,At-Risk
+C0046,O000803,2026-06-02,Beauty,5,759.18,0.0,0.0,0,,Online,Offer-Sensitive
+C0093,O001739,2026-06-02,Electronics,3,282.77,23.22,85.54,1,,Online,Occasional
+C0158,O002795,2026-06-03,Home & Kitchen,3,1335.54,0.0,0.0,0,,Mobile App,Loyal
+C0045,O000786,2026-06-04,Beauty,1,660.34,6.1,42.86,1,,In-Store,At-Risk
+C0177,O003295,2026-06-04,Clothing,1,362.6,0.0,0.0,0,,Online,Offer-Sensitive
+C0018,O000319,2026-06-05,Clothing,3,1789.87,0.0,0.0,0,,Mobile App,Loyal
+C0002,O000015,2026-06-06,Beauty,4,1476.91,0.0,0.0,0,,In-Store,Loyal
+C0006,O000121,2026-06-06,Grocery,5,936.94,0.0,0.0,0,,Online,Loyal
+C0200,O003745,2026-06-07,Grocery,4,2079.4,0.0,0.0,0,,Mobile App,Occasional
+C0005,O000094,2026-06-08,Sports,4,2176.71,0.0,0.0,0,,In-Store,Loyal
+C0130,O002310,2026-06-08,Home & Kitchen,5,1001.42,0.0,0.0,0,,In-Store,At-Risk
+C0188,O003537,2026-06-08,Beauty,4,918.57,0.0,0.0,0,,In-Store,At-Risk
+C0193,O003618,2026-06-08,Home & Kitchen,5,1832.46,0.0,0.0,0,,In-Store,At-Risk
+C0178,O003324,2026-06-10,Clothing,2,1672.4,0.0,0.0,0,,Online,Loyal
+C0061,O001106,2026-06-11,Clothing,3,1196.21,0.0,0.0,0,,Mobile App,Loyal
+C0083,O001546,2026-06-13,Grocery,5,672.48,0.0,0.0,0,,Mobile App,At-Risk
+C0002,O000018,2026-06-14,Clothing,2,890.31,0.0,0.0,0,,Mobile App,Loyal
+C0018,O000322,2026-06-16,Grocery,2,1504.15,0.0,0.0,0,,Online,Loyal
+C0021,O000367,2026-06-16,Electronics,5,442.21,0.0,0.0,0,,Online,Occasional
+C0028,O000479,2026-06-16,Sports,4,496.11,10.46,57.97,1,,Mobile App,At-Risk
+C0171,O003110,2026-06-16,Clothing,2,558.24,0.0,0.0,0,,Mobile App,Loyal
+C0176,O003260,2026-06-16,Home & Kitchen,3,718.5,0.0,0.0,0,,In-Store,Loyal
+C0103,O001872,2026-06-19,Grocery,1,1110.7,0.0,0.0,0,,In-Store,Loyal
+C0025,O000415,2026-06-20,Grocery,1,684.04,0.0,0.0,0,,Mobile App,At-Risk
+C0065,O001212,2026-06-20,Electronics,1,198.63,28.96,80.96,1,,Mobile App,Offer-Sensitive
+C0083,O001551,2026-06-20,Grocery,4,1244.16,0.0,0.0,0,,Mobile App,At-Risk
+C0128,O002282,2026-06-20,Clothing,5,466.11,32.45,223.9,1,,Online,Offer-Sensitive
+C0159,O002833,2026-06-20,Electronics,1,1266.56,0.0,0.0,0,,Online,At-Risk
+C0045,O000788,2026-06-21,Clothing,2,426.25,0.0,0.0,0,,Online,At-Risk
+C0131,O002329,2026-06-21,Beauty,2,496.16,0.0,0.0,0,,In-Store,Occasional
+C0145,O002607,2026-06-21,Beauty,1,1678.5,0.0,0.0,0,,Mobile App,At-Risk
+C0010,O000180,2026-06-22,Beauty,3,258.43,38.2,159.73,1,,Online,Offer-Sensitive
+C0128,O002283,2026-06-22,Electronics,1,784.94,26.51,283.19,1,,In-Store,Offer-Sensitive
+C0085,O001585,2026-06-23,Grocery,2,2037.57,0.0,0.0,0,,In-Store,Loyal
+C0137,O002412,2026-06-24,Home & Kitchen,1,418.32,0.0,0.0,0,,In-Store,Loyal
+C0136,O002401,2026-06-27,Sports,4,352.21,0.0,0.0,0,,Online,At-Risk
+C0196,O003686,2026-06-27,Home & Kitchen,1,1611.31,0.0,0.0,0,,Mobile App,At-Risk
+C0027,O000440,2026-06-28,Grocery,1,797.51,0.0,0.0,0,,Online,Loyal
+C0166,O002999,2026-06-28,Clothing,1,288.92,37.85,175.95,1,,In-Store,Offer-Sensitive
+C0083,O001555,2026-06-29,Home & Kitchen,4,725.63,19.26,173.07,1,,Mobile App,At-Risk
+C0093,O001742,2026-06-29,Grocery,2,241.86,24.53,78.6,1,,Online,Occasional
+C0137,O002413,2026-06-29,Sports,2,661.82,0.0,0.0,0,,In-Store,Loyal
+C0022,O000388,2026-07-01,Home & Kitchen,2,2521.9,5.28,140.45,1,MONSOON26,In-Store,At-Risk
+C0061,O001111,2026-07-01,Home & Kitchen,5,877.42,0.0,0.0,0,,Online,Loyal
+C0069,O001273,2026-07-01,Sports,1,676.59,31.82,315.83,1,MONSOON26,Mobile App,Offer-Sensitive
+C0162,O002901,2026-07-01,Grocery,2,1494.23,0.0,0.0,0,,Mobile App,At-Risk
+C0124,O002222,2026-07-02,Home & Kitchen,4,401.68,18.56,91.56,1,MONSOON26,Mobile App,At-Risk
+C0168,O003021,2026-07-02,Sports,2,790.61,0.0,0.0,0,,In-Store,Occasional
+C0039,O000656,2026-07-03,Sports,3,918.59,0.0,0.0,0,,In-Store,At-Risk
+C0101,O001834,2026-07-03,Grocery,3,1575.92,0.0,0.0,0,,In-Store,At-Risk
+C0145,O002609,2026-07-03,Grocery,1,817.0,0.0,0.0,0,,Mobile App,At-Risk
+C0184,O003449,2026-07-03,Beauty,5,1283.71,0.0,0.0,0,,In-Store,Loyal
+C0031,O000528,2026-07-04,Sports,5,304.84,41.39,215.3,1,MONSOON26,In-Store,Offer-Sensitive
+C0104,O001906,2026-07-04,Electronics,3,394.62,37.73,239.11,1,MONSOON26,Online,Offer-Sensitive
+C0124,O002223,2026-07-04,Sports,5,411.3,18.45,93.03,1,MONSOON26,In-Store,At-Risk
+C0190,O003586,2026-07-04,Clothing,5,1164.03,0.0,0.0,0,,Mobile App,Loyal
+C0020,O000355,2026-07-05,Beauty,2,574.59,30.26,249.29,1,MONSOON26,Mobile App,Offer-Sensitive
+C0081,O001503,2026-07-06,Sports,5,386.81,0.0,0.0,0,,Online,Loyal
+C0188,O003545,2026-07-06,Electronics,3,1112.0,0.0,0.0,0,,In-Store,At-Risk
+C0012,O000230,2026-07-08,Grocery,2,809.86,0.0,0.0,0,,Mobile App,At-Risk
+C0084,O001565,2026-07-09,Clothing,1,1116.62,15.14,199.27,1,MONSOON26,Online,At-Risk
+C0128,O002285,2026-07-09,Sports,5,1781.75,0.0,0.0,0,,Online,Offer-Sensitive
+C0047,O000818,2026-07-10,Beauty,4,1647.96,0.0,0.0,0,,In-Store,Occasional
+C0099,O001802,2026-07-12,Sports,3,1240.24,0.0,0.0,0,,Mobile App,Occasional
+C0171,O003115,2026-07-12,Grocery,2,728.1,0.0,0.0,0,,In-Store,Loyal
+C0018,O000326,2026-07-13,Grocery,5,947.33,0.0,0.0,0,,Online,Loyal
+C0158,O002801,2026-07-13,Electronics,2,988.49,0.0,0.0,0,,Mobile App,Loyal
+C0178,O003331,2026-07-15,Sports,4,1776.44,0.0,0.0,0,,Online,Loyal
+C0002,O000027,2026-07-17,Electronics,2,1890.39,0.0,0.0,0,,Online,Loyal
+C0176,O003267,2026-07-17,Grocery,4,1278.04,0.0,0.0,0,,Online,Loyal
+C0137,O002417,2026-07-18,Electronics,4,878.39,0.0,0.0,0,,In-Store,Loyal
+C0183,O003428,2026-07-18,Home & Kitchen,5,1002.1,0.0,0.0,0,,Mobile App,At-Risk
+C0197,O003703,2026-07-21,Electronics,4,795.8,0.0,0.0,0,,In-Store,Loyal
+C0072,O001335,2026-07-23,Electronics,1,1250.75,0.0,0.0,0,,Online,Loyal
+C0169,O003044,2026-07-24,Electronics,3,2211.83,0.0,0.0,0,,In-Store,Loyal
+C0003,O000052,2026-07-25,Home & Kitchen,4,622.31,0.0,0.0,0,,Mobile App,Occasional
+C0061,O001115,2026-07-25,Clothing,5,837.01,0.0,0.0,0,,In-Store,Loyal
+C0112,O002038,2026-07-26,Beauty,1,560.63,39.89,372.04,1,,Online,Offer-Sensitive
+C0193,O003625,2026-07-29,Beauty,1,2361.47,0.0,0.0,0,,Mobile App,At-Risk
+C0003,O000053,2026-07-30,Beauty,1,794.44,0.0,0.0,0,,Online,Occasional
+C0011,O000197,2026-07-31,Beauty,4,1403.42,0.0,0.0,0,,In-Store,Loyal
+C0048,O000840,2026-07-31,Electronics,3,5344.81,0.0,0.0,0,,In-Store,Loyal
+C0047,O000819,2026-08-02,Clothing,1,638.61,0.0,0.0,0,,In-Store,Occasional
+C0016,O000292,2026-08-03,Clothing,2,1514.14,14.35,253.68,1,,Mobile App,At-Risk
+C0200,O003748,2026-08-03,Electronics,3,1834.76,0.0,0.0,0,,In-Store,Occasional
+C0102,O001850,2026-08-04,Beauty,4,623.8,26.32,222.82,1,,Mobile App,Offer-Sensitive
+C0128,O002289,2026-08-05,Sports,3,473.98,29.77,200.91,1,,Mobile App,Offer-Sensitive
+C0159,O002845,2026-08-05,Electronics,3,536.27,0.0,0.0,0,,Mobile App,At-Risk
+C0163,O002922,2026-08-05,Sports,4,2594.4,0.0,0.0,0,,In-Store,Loyal
+C0028,O000491,2026-08-06,Home & Kitchen,5,778.84,6.07,50.3,1,,Mobile App,At-Risk
+C0144,O002575,2026-08-08,Clothing,1,1121.71,0.0,0.0,0,,Mobile App,Loyal
+C0103,O001881,2026-08-10,Sports,3,2672.22,0.0,0.0,0,,Online,Loyal
+C0184,O003453,2026-08-12,Beauty,2,894.99,7.79,75.56,1,,In-Store,Loyal
+C0046,O000811,2026-08-14,Electronics,5,1283.24,29.39,534.0,1,,In-Store,Offer-Sensitive
+C0029,O000496,2026-08-15,Home & Kitchen,4,373.53,0.0,0.0,0,,Mobile App,Occasional
+C0090,O001682,2026-08-18,Home & Kitchen,4,381.32,0.0,0.0,0,,Mobile App,Occasional
+C0120,O002165,2026-08-18,Grocery,5,558.03,0.0,0.0,0,,Online,Occasional
+C0070,O001296,2026-08-19,Home & Kitchen,4,1203.0,0.0,0.0,0,,Mobile App,Loyal
+C0168,O003022,2026-08-19,Sports,5,1960.73,0.0,0.0,0,,In-Store,Occasional
+C0020,O000359,2026-08-20,Grocery,5,1040.88,0.0,0.0,0,,Online,Offer-Sensitive
+C0059,O001065,2026-08-21,Clothing,3,809.19,0.0,0.0,0,,In-Store,Loyal
+C0170,O003091,2026-08-21,Beauty,3,1066.31,0.0,0.0,0,,In-Store,Loyal
+C0007,O000150,2026-08-22,Grocery,3,203.78,42.79,152.44,1,,Mobile App,Offer-Sensitive
+C0144,O002579,2026-08-22,Electronics,4,1462.39,11.18,184.02,1,,Mobile App,Loyal
+C0086,O001621,2026-08-24,Electronics,4,246.82,11.5,32.07,1,,In-Store,Occasional
+C0187,O003516,2026-08-25,Home & Kitchen,1,1104.81,0.0,0.0,0,,Mobile App,Loyal
+C0048,O000843,2026-08-29,Electronics,5,1244.73,6.96,93.08,1,,In-Store,Loyal
+C0132,O002336,2026-08-29,Beauty,3,947.09,0.0,0.0,0,,Online,Occasional
+C0014,O000257,2026-08-31,Clothing,3,458.37,10.35,52.9,1,,Mobile App,Loyal
+C0035,O000606,2026-08-31,Sports,1,1787.78,0.0,0.0,0,,Mobile App,Loyal
+C0119,O002149,2026-08-31,Beauty,4,2595.18,10.64,308.98,1,,In-Store,Loyal
+C0149,O002697,2026-09-01,Sports,1,1154.09,0.0,0.0,0,,Online,Loyal
+C0068,O001262,2026-09-02,Home & Kitchen,1,897.46,31.96,421.63,1,,Mobile App,Offer-Sensitive
+C0002,O000033,2026-09-04,Beauty,5,1428.42,0.0,0.0,0,,In-Store,Loyal
+C0002,O000034,2026-09-05,Electronics,2,720.82,0.0,0.0,0,,Online,Loyal
+C0155,O002756,2026-09-05,Sports,3,210.22,22.04,59.44,1,,In-Store,Occasional
+C0059,O001069,2026-09-07,Grocery,4,3065.7,0.0,0.0,0,,In-Store,Loyal
+C0146,O002635,2026-09-08,Clothing,5,687.91,37.57,414.06,1,,In-Store,Offer-Sensitive
+C0169,O003056,2026-09-08,Sports,5,1114.5,0.0,0.0,0,,Mobile App,Loyal
+C0085,O001603,2026-09-09,Sports,4,1242.19,0.0,0.0,0,,Mobile App,Loyal
+C0062,O001162,2026-09-10,Electronics,4,1850.47,0.0,0.0,0,,Online,Loyal
+C0166,O003009,2026-09-10,Sports,4,205.1,34.14,106.31,1,,Mobile App,Offer-Sensitive
+C0195,O003669,2026-09-13,Clothing,2,777.2,21.29,210.24,1,,In-Store,Occasional
+C0106,O001946,2026-09-14,Electronics,2,4521.72,0.0,0.0,0,,Online,Loyal
+C0137,O002430,2026-09-15,Clothing,4,800.54,0.0,0.0,0,,In-Store,Loyal
+C0137,O002431,2026-09-16,Home & Kitchen,3,905.84,0.0,0.0,0,,Mobile App,Loyal
+C0171,O003128,2026-09-19,Sports,2,1916.05,0.0,0.0,0,,Mobile App,Loyal
+C0198,O003728,2026-09-19,Sports,5,607.47,34.14,314.95,1,,In-Store,Offer-Sensitive
+C0010,O000185,2026-09-20,Home & Kitchen,4,712.31,36.24,404.8,1,,In-Store,Offer-Sensitive
+C0146,O002638,2026-09-20,Home & Kitchen,3,402.42,0.0,0.0,0,,Mobile App,Offer-Sensitive
+C0165,O002980,2026-09-23,Beauty,4,1282.12,0.0,0.0,0,,In-Store,Loyal
+C0042,O000713,2026-09-24,Clothing,5,2266.55,0.0,0.0,0,,In-Store,Loyal
+C0106,O001949,2026-09-24,Grocery,4,1677.27,0.0,0.0,0,,Mobile App,Loyal
+C0165,O002981,2026-09-25,Grocery,2,1164.86,0.0,0.0,0,,In-Store,Loyal
+C0040,O000671,2026-09-26,Beauty,1,889.99,26.73,324.64,1,,Mobile App,Offer-Sensitive
+C0062,O001164,2026-09-26,Beauty,5,773.25,0.0,0.0,0,,Online,Loyal
+C0062,O001165,2026-09-28,Home & Kitchen,1,1237.95,0.0,0.0,0,,Mobile App,Loyal
+C0146,O002639,2026-09-28,Clothing,3,223.49,43.61,172.87,1,,Online,Offer-Sensitive
+C0044,O000777,2026-09-30,Grocery,5,661.99,0.0,0.0,0,,Online,Loyal
+C0058,O001035,2026-09-30,Home & Kitchen,5,303.96,33.1,150.4,1,,In-Store,Offer-Sensitive
+C0005,O000110,2026-10-02,Clothing,5,499.05,0.0,0.0,0,,In-Store,Loyal
+C0027,O000458,2026-10-03,Beauty,1,556.45,0.0,0.0,0,,Online,Loyal
+C0085,O001610,2026-10-04,Electronics,5,1223.63,0.0,0.0,0,,In-Store,Loyal
+C0011,O000212,2026-10-05,Grocery,1,1399.3,0.0,0.0,0,,Online,Loyal
+C0015,O000271,2026-10-05,Grocery,3,609.18,6.58,42.93,1,,Online,Occasional
+C0149,O002701,2026-10-06,Electronics,4,2093.03,0.0,0.0,0,,Mobile App,Loyal
+C0150,O002712,2026-10-11,Clothing,4,636.1,33.52,320.76,1,DIWALI26,Mobile App,Offer-Sensitive
+C0174,O003228,2026-10-13,Clothing,5,1304.53,0.0,0.0,0,,In-Store,Loyal
+C0170,O003098,2026-10-14,Beauty,1,1985.82,0.0,0.0,0,,Mobile App,Loyal
+C0014,O000264,2026-10-15,Grocery,1,1253.0,0.0,0.0,0,,In-Store,Loyal
+C0027,O000462,2026-10-15,Beauty,5,979.39,0.0,0.0,0,,Online,Loyal
+C0184,O003466,2026-10-15,Sports,4,756.35,0.0,0.0,0,,In-Store,Loyal
+C0085,O001613,2026-10-19,Clothing,1,1209.27,0.0,0.0,0,,In-Store,Loyal
+C0103,O001898,2026-10-23,Clothing,5,2451.3,0.0,0.0,0,,Mobile App,Loyal
