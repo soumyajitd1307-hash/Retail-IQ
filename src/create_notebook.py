@@ -41,11 +41,15 @@ add_markdown("""
 ## Overview & Analytical Scope
 This notebook implements the end-to-end customer feature engineering pipeline for Retail IQ. It transforms transaction-level sales data into a high-dimensional, customer-level representation designed for downstream customer segmentation and ML modeling (Role C).
 
+### Analytical Notes on Currency and Promotion Exposure:
+- **Currency:** As documented in `data/data_dictionary.md`, financial columns (`amount`, `discount_amount`) record monetary value without an explicitly specified fiat currency (neither USD nor INR). All financial values are treated strictly as standardized monetary / currency units.
+- **Promotional Lift Methodology:** No promotional campaign calendar table exists in the dataset. Consequently, `promo_lift` calculates the observed difference in Average Order Value (AOV) between discounted transactions (`is_discounted == 1`) and non-discounted transactions (`is_discounted == 0`), capturing observed pricing sensitivity rather than causal campaign effectiveness.
+
 ### The Ten Required Customer Features:
 1. **Recency Days (`recency_days`):** Days elapsed from customer's latest order to the fixed snapshot date (`2026-10-30`).
 2. **Frequency (`frequency`):** Count of unique orders (`order_id`) placed by the customer.
-3. **Monetary (`monetary`):** Total amount spent (net paid amount after discount) across all transactions.
-4. **Average Order Value (`avg_order_value`):** Monetary spend divided by frequency.
+3. **Monetary (`monetary`):** Total amount spent (net paid amount after discount) across all transactions in currency units.
+4. **Average Order Value (`avg_order_value`):** Monetary spend divided by frequency in currency units.
 5. **Offer Dependency (`offer_dependency`):** Fraction of unique orders that utilized a promotion/discount.
 6. **Average Discount Percentage (`avg_discount_pct`):** Mean percentage discount across all customer orders.
 7. **Repeat Rate (`repeat_rate`):** Six-month repeat purchase ratio `(frequency - 1) / frequency`.
@@ -126,7 +130,7 @@ We run the modular feature blocks to calculate the 10 customer features.
 - **Discounts:** Distinguishes full-price orders from promotional orders.
 - **Loyalty:** All 200 customers have $\\ge 3$ transactions, ensuring well-defined repeat rates.
 - **Diversity:** `Unknown` category (1 occurrence in `C0200`) is excluded by default so missing data is not counted as a genuine product category.
-- **Spend Trend:** Compares Trimester 1 (May–Jul) and Trimester 2 (Aug–Oct). Customer `C0082` joined in Trimester 2 (Period 1 spend = $0); the denominator is zero, so `spend_trend` is explicitly preserved as `NaN`.
+- **Spend Trend:** Compares Trimester 1 (May–Jul) and Trimester 2 (Aug–Oct). Customer `C0082` joined in Trimester 2 (Period 1 spend = 0 units); the denominator is zero, so `spend_trend` is explicitly preserved as `NaN`.
 - **Promo Lift:** Measures $((AOV_{disc} - AOV_{nondisc}) / AOV_{nondisc}) \\times 100$. Exactly 23 customers lack one comparison group (20 customers have 0 discounts, 3 customers have 100% discounts); their lift is explicitly preserved as `NaN`.
 """)
 
@@ -151,9 +155,9 @@ We validate:
 add_code("""validation_results = validate_engineered_features(features_df, raw_df)
 
 print(f"All Validation Checks Passed: {validation_results['all_validation_checks_passed']}")
-print(f"Total Transactions Amount:   ${validation_results['transaction_total_amount']:,.2f}")
-print(f"Total Customer Monetary Sum: ${validation_results['feature_total_monetary']:,.2f}")
-print(f"Reconciliation Discrepancy:  ${validation_results['monetary_discrepancy']:,.4f}")
+print(f"Total Transactions Amount:   {validation_results['transaction_total_amount']:,.2f} units")
+print(f"Total Customer Monetary Sum: {validation_results['feature_total_monetary']:,.2f} units")
+print(f"Reconciliation Discrepancy:  {validation_results['monetary_discrepancy']:,.4f} units")
 print(f"Undefined Spend Trend Count: {validation_results['undefined_spend_trend_count']} (Customer: {validation_results['undefined_spend_trend_customers']})")
 print(f"Undefined Promo Lift Count:  {validation_results['undefined_promo_lift_count']}")
 """)
@@ -163,7 +167,7 @@ add_markdown("""
 ## 5. Manual Customer Calculation Verification
 To verify mathematical accuracy, we trace 3 distinct customer profiles:
 - **`C0001`:** Typical multi-channel purchaser with both discounted and full-price orders.
-- **`C0002`:** Loyal full-price buyer ($0 offer dependency, undefined promo lift).
+- **`C0002`:** Loyal full-price buyer (0.0 offer dependency, undefined promo lift).
 - **`C0082`:** Late-onboarded customer (joined August 2026, zero Period 1 spend, undefined spend trend).
 """)
 
@@ -211,7 +215,7 @@ add_code("""fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
 # 1. Monetary Spend
 sns.histplot(features_df["monetary"], kde=True, ax=axes[0, 0], color="#2b5c8f")
-axes[0, 0].set_title("Customer Total Spend ($)")
+axes[0, 0].set_title("Customer Total Spend (Currency Units)")
 
 # 2. Order Frequency
 sns.histplot(features_df["frequency"], kde=True, ax=axes[0, 1], color="#2ca02c")
@@ -267,3 +271,4 @@ with open(out_notebook, "w", encoding="utf-8") as f:
     json.dump(notebook_json, f, indent=2)
 
 print(f"Successfully generated Jupyter notebook at {out_notebook}")
+

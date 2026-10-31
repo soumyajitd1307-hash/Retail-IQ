@@ -12,10 +12,14 @@
 
 This report delivers the exploratory data analysis (EDA) of the ten engineered customer features constructed for the Retail IQ intelligence platform. 
 
-The analysis reveals meaningful variance across customer purchase recency, basket size, promotional dependency, and product breadth. Clear behavioral signals emerge—including a highly polarized discount engagement pattern, strong linkage between repeat purchasing and multi-category exploration, and pronounced spending drift over the six-month observation window.
+The analysis reveals meaningful empirical variance across customer purchase recency, basket size, promotional dependency, and product breadth. Clear behavioral patterns emerge—including a highly polarized discount engagement pattern, a strong positive association between repeat purchasing and multi-category exploration, and pronounced spending drift over the six-month observation window.
 
 > [!NOTE]
-> In accordance with project boundaries, this report focuses purely on univariate distributions, bivariate relationships, and behavioral patterns. Customer clustering, segmentation, and machine learning models are strictly reserved for Role C.
+> **Governance & Boundaries:**
+> 1. In accordance with project boundaries, this report focuses purely on univariate distributions, bivariate relationships, and empirical statistical patterns. Customer clustering, segmentation, and machine learning models are strictly reserved for Role C.
+> 2. **Correlation vs. Causation:** All reported correlation coefficients indicate observational statistical associations, **not** causal mechanisms.
+> 3. **Currency Units:** As per `data/data_dictionary.md`, financial columns record values in generic currency / monetary units without an explicitly documented fiat denomination (such as USD or INR).
+> 4. **Promotional Exposure vs. Causal Lift:** No external campaign-day calendar exists in the repository. The metric `promo_lift` reflects observed differences in Average Order Value (AOV) between discounted and full-price orders, not causal campaign uplift.
 
 ---
 
@@ -23,18 +27,18 @@ The analysis reveals meaningful variance across customer purchase recency, baske
 
 The table below presents the central tendencies, dispersion, and range for all ten customer features across the 200 customer profiles:
 
-| Feature Name | Count | Mean | Std Dev | Min | 25% | Median (50%) | 75% | Max |
-|---|---|---|---|---|---|---|---|---|
-| `recency_days` | 200 | 48.04 | 36.69 | 1.00 | 14.00 | 40.00 | 75.25 | 163.00 |
-| `frequency` | 200 | 18.74 | 11.74 | 3.00 | 7.00 | 18.00 | 27.00 | 45.00 |
-| `monetary` ($) | 200 | 20,685.36 | 19,467.12 | 902.82 | 4,927.34 | 14,283.50 | 30,316.43 | 75,582.94 |
-| `avg_order_value` ($) | 200 | 939.09 | 432.06 | 225.51 | 624.26 | 875.20 | 1,256.63 | 2,043.68 |
-| `offer_dependency` | 200 | 0.3617 | 0.3055 | 0.0000 | 0.0741 | 0.2967 | 0.6667 | 1.0000 |
-| `avg_discount_pct` (%) | 200 | 9.49 | 11.00 | 0.00 | 0.78 | 4.51 | 17.47 | 35.28 |
-| `repeat_rate` | 200 | 0.9058 | 0.0818 | 0.6667 | 0.8571 | 0.9444 | 0.9630 | 0.9778 |
-| `category_diversity` | 200 | 5.18 | 1.20 | 2.00 | 5.00 | 6.00 | 6.00 | 6.00 |
-| `spend_trend` (%) | 199 | -33.66 | 52.31 | -100.00 | -76.41 | -39.93 | 2.52 | 164.13 |
-| `promo_lift` (%) | 177 | -15.24 | 34.78 | -75.05 | -35.90 | -24.07 | 1.59 | 167.08 |
+| Feature Name | Count | Mean | Std Dev | Min | 25% | Median (50%) | 75% | Max | Units |
+|---|---|---|---|---|---|---|---|---|---|
+| `recency_days` | 200 | 48.04 | 36.69 | 1.00 | 14.00 | 40.00 | 75.25 | 163.00 | Days |
+| `frequency` | 200 | 18.74 | 11.74 | 3.00 | 7.00 | 18.00 | 27.00 | 45.00 | Orders |
+| `monetary` | 200 | 20,685.36 | 19,467.12 | 902.82 | 4,927.34 | 14,283.50 | 30,316.43 | 75,582.94 | Currency Units |
+| `avg_order_value` | 200 | 939.09 | 432.06 | 225.51 | 624.26 | 875.20 | 1,256.63 | 2,043.68 | Currency Units |
+| `offer_dependency` | 200 | 0.3617 | 0.3055 | 0.0000 | 0.0741 | 0.2967 | 0.6667 | 1.0000 | Ratio [0, 1] |
+| `avg_discount_pct` | 200 | 9.49 | 11.00 | 0.00 | 0.78 | 4.51 | 17.47 | 35.28 | % |
+| `repeat_rate` | 200 | 0.9058 | 0.0818 | 0.6667 | 0.8571 | 0.9444 | 0.9630 | 0.9778 | Ratio [0, 1) |
+| `category_diversity` | 200 | 5.18 | 1.20 | 2.00 | 5.00 | 6.00 | 6.00 | 6.00 | Categories [1, 6] |
+| `spend_trend` | 199 | -33.66 | 52.31 | -100.00 | -76.41 | -39.93 | 2.52 | 164.13 | % |
+| `promo_lift` | 177 | -15.24 | 34.78 | -75.05 | -35.90 | -24.07 | 1.59 | 167.08 | % |
 
 *Note: `spend_trend` has 1 undefined customer (`C0082`); `promo_lift` has 23 undefined customers (20 zero-discount, 3 discount-only).*
 
@@ -42,40 +46,40 @@ The table below presents the central tendencies, dispersion, and range for all t
 
 ## 3. Univariate Feature Distributions
 
-Visual plots for all distributions are stored in `outputs/`. Key takeaways from each distribution include:
+Visual plots for all distributions are stored in `outputs/`. Key empirical findings include:
 
 ### A. Customer Spending (`monetary` & `avg_order_value`)
 * **Reference Plot:** `outputs/customer_spending_distribution.png`
-* **Monetary Spend:** The monetary distribution displays severe positive skewness ($\text{mean} = \$20,685$, $\text{median} = \$14,283$). The top 25% of customers spend between $\$30,316$ and $\$75,583$, generating the vast majority of retail revenue.
-* **Average Order Value (AOV):** AOV is moderately right-skewed, ranging from $\$225.51$ up to $\$2,043.68$ per order. This indicates that customer value is driven by both high order frequency and elevated ticket size.
+* **Monetary Spend:** The monetary distribution displays pronounced positive skewness ($\text{mean} = 20,685.36\text{ units}$, $\text{median} = 14,283.50\text{ units}$). The top 25% of customers spend between $30,316.43$ and $75,582.94$ currency units, accounting for a disproportionately large share of cumulative retail revenue.
+* **Average Order Value (AOV):** AOV is moderately right-skewed, ranging from $225.51$ up to $2,043.68$ currency units per order. This indicates that customer monetary value reflects variation in both order frequency and average basket size.
 
 ### B. Order Frequency (`frequency`) & Recency (`recency_days`)
 * **Reference Plots:** `outputs/frequency_distribution.png`, `outputs/recency_distribution.png`
-* **Frequency:** Spans from 3 orders to 45 orders. The distribution is multi-modal, reflecting distinct customer operational cadences (e.g. occasional buyers clustering around 3–7 orders vs. highly active purchasers clustering around 25–40 orders).
-* **Recency:** Median recency is 40 days, but 25% of the customer base has not transacted in over 75 days (maximum 163 days). This segment exhibits clear churn/dormancy risk.
+* **Frequency:** Spans from 3 orders to 45 orders. The distribution displays distinct density regions (e.g. less active purchasers clustering around 3–7 orders vs. highly active purchasers clustering around 25–40 orders).
+* **Recency:** Median recency is 40 days, but 25% of the customer base has not transacted in over 75 days (maximum 163 days), characterizing an inactive or dormant customer sub-cohort.
 
 ### C. Promotional Dependency (`offer_dependency` & `avg_discount_pct`)
 * **Reference Plot:** `outputs/offer_dependency_distribution.png`
-* **Bimodal Polarization:** The customer base exhibits distinct attitudes toward promotions:
-  - **Full-Price Loyalists:** 20 customers have an `offer_dependency` of exactly 0.0000 (never transacting on promotion).
-  - **Discount Maximizers:** 3 customers have an `offer_dependency` of 1.0000 (purchasing exclusively during sales), with the top quartile exhibiting offer dependencies exceeding 66.7%.
-* **Average Discount:** Across all orders, the mean customer discount is 9.49%, though discount-sensitive customers achieve personal order averages exceeding 35%.
+* **Bimodal Polarization:** The customer base exhibits distinct empirical modes of discount utilization:
+  - **Full-Price Cohort:** 20 customers have an `offer_dependency` of exactly 0.0000 (0% of transactions involved a discount).
+  - **Discount-Focused Cohort:** 3 customers have an `offer_dependency` of 1.0000 (100% of transactions involved a discount), while the top quartile has offer dependencies exceeding 66.7%.
+* **Average Discount:** Across all orders, the mean customer discount percentage is 9.49%, though discount-sensitive customers achieve personal order averages exceeding 35%.
 
 ### D. Merchandise Breadth (`category_diversity`)
 * **Reference Plot:** `outputs/category_diversity_distribution.png`
-* **High Category Cross-Over:** Over 62% of customers (124 out of 200) have purchased across all 6 merchandise categories (`Home & Kitchen`, `Electronics`, `Grocery`, `Beauty`, `Sports`, `Clothing`).
-* **Minimum Diversity:** Even the least diverse customer purchased from 2 distinct product lines.
+* **Broad Category Penetration:** Over 62% of customers (124 out of 200) have purchased across all 6 merchandise categories (`Home & Kitchen`, `Electronics`, `Grocery`, `Beauty`, `Sports`, `Clothing`).
+* **Minimum Diversity:** All customers transacted in at least 2 distinct product categories.
 
 ### E. Dynamic Spend Drift (`spend_trend`)
 * **Reference Plot:** `outputs/spend_trend_and_promo_lift.png`
-* **General Deceleration:** The median spend trend is $-39.93\%$, indicating an overall spending contraction in Trimester 2 (Aug–Oct) compared to Trimester 1 (May–Jul).
-* **Churned Customers:** 27 customers experienced a $-100.0\%$ spend trend (no purchases in Trimester 2).
-* **Growth Cohort:** Conversely, a resilient subset of customers increased spending by up to $+164.13\%$.
+* **Cohort-Wide Deceleration:** The median spend trend is $-39.93\%$, indicating an overall contraction in customer spend during Trimester 2 (Aug–Oct) relative to Trimester 1 (May–Jul).
+* **Dormant Segment:** 27 customers have a $-100.0\%$ spend trend (no recorded purchases in Trimester 2).
+* **Expanding Segment:** A distinct cohort showed spending expansion up to $+164.13\%$.
 
 ### F. Promotional Lift (`promo_lift`)
 * **Reference Plot:** `outputs/spend_trend_and_promo_lift.png`
-* **Net Paid Impact:** Among the 177 customers with both discounted and full-price orders, median promotional lift is $-24.07\%$ when measured on net paid amount. Because promotional transactions apply an average discount of $\sim 27\%$, the net order total is frequently lower than full-price baseline orders unless basket volume increases substantially.
-* **High-Lift Outliers:** A select cohort exhibited substantial volume expansion under promotion, reaching promotional lifts up to $+167.08\%$.
+* **Observed Order Value Difference:** Among the 177 customers with both discounted and full-price orders, the median promotional lift is $-24.07\%$ when measured on net paid order amounts. Because promotional transactions apply an average discount of $\sim 27\%$, the net order total is frequently lower than full-price baseline orders unless unit volume expands sufficiently.
+* **Positive Lift Cohort:** A subset of customers showed positive promotional response, with order value expansions reaching up to $+167.08\%$.
 
 ---
 
@@ -83,7 +87,7 @@ Visual plots for all distributions are stored in `outputs/`. Key takeaways from 
 
 * **Reference Plot:** `outputs/correlation_heatmap.png`
 
-The Pearson correlation matrix among all ten numerical features reveals several key relationships:
+The Pearson correlation matrix among all ten numerical features:
 
 ```
                     recency_days  frequency  monetary  avg_order_value  offer_dependency  avg_discount_pct  repeat_rate  category_diversity  spend_trend  promo_lift
@@ -99,29 +103,29 @@ spend_trend               -0.674      0.187     0.210            0.153          
 promo_lift                 0.083     -0.064    -0.001           -0.022            -0.211            -0.253       -0.167              -0.178       -0.009       1.000
 ```
 
-### Key Statistical Insights:
+### Statistical Observations:
 
-1. **Volume Drives Total Spend ($r = +0.903$):**  
-   `frequency` and `monetary` are nearly collinear. Customers who purchase frequently contribute the overwhelming share of revenue, with order value ($r = +0.839$) playing a secondary complementary role.
-2. **Promotional Metrics High Redundancy ($r = +0.942$):**  
-   `offer_dependency` and `avg_discount_pct` exhibit near-perfect alignment. Customers who buy on promotion frequently also receive steeper percentage discounts. Role C should consider dimensionality reduction (PCA) or feature regularization to prevent multi-collinearity.
-3. **High-Value Customers Eschew Discounts ($r = -0.515$ with Monetary; $r = -0.508$ with AOV):**  
-   Customers with the highest cumulative spend and largest average order values exhibit significantly lower offer dependency. This highlights a high-margin premium segment that does not require discounting incentives.
-4. **Repeat Purchases Unlock Category Breadth ($r = +0.892$):**  
-   `repeat_rate` and `category_diversity` are strongly positively correlated. As customer relationship longevity and order count increase, they organically expand cross-category adoption across the product catalog.
-5. **Dormancy Predicts Sharp Deceleration ($r = -0.674$):**  
-   `recency_days` strongly negatively correlates with `spend_trend`. Customers with high recency days (long time since last transaction) experienced severe negative spend trends, providing an early-warning signal for customer attrition.
+1. **Strong Positive Association Between Frequency and Monetary Spend ($r = +0.903$):**  
+   Order count and cumulative spend are strongly positively associated, indicating that frequent transaction volume is the primary statistical correlate of cumulative customer monetary value.
+2. **High Association Between Promotional Metrics ($r = +0.942$):**  
+   `offer_dependency` and `avg_discount_pct` exhibit near-collinear alignment. Customers who frequently transact on promotion also receive higher average percentage discounts. Role C should account for this when selecting clustering features or applying dimensionality reduction.
+3. **Negative Association Between Monetary Spend and Offer Dependency ($r = -0.515$ with Monetary; $r = -0.508$ with AOV):**  
+   Customers with higher cumulative monetary spend and larger average order values tend to have lower offer dependencies in this dataset.
+4. **Positive Association Between Repeat Rate and Category Diversity ($r = +0.892$):**  
+   `repeat_rate` and `category_diversity` are strongly positively associated, reflecting that customers who purchase repeatedly also tend to purchase across more merchandise categories.
+5. **Negative Association Between Recency Days and Spending Trend ($r = -0.674$):**  
+   Customers with higher recency days (longer period since last purchase) exhibit pronounced negative spend trends between Trimester 1 and Trimester 2.
 
 ---
 
 ## 5. Visual Artifact Index
 
 All generated visual assets are rendered at 300 DPI and available in `outputs/`:
-- `customer_spending_distribution.png`: Histogram & KDE of Monetary and AOV.
-- `frequency_distribution.png`: Distribution of order counts per customer.
-- `recency_distribution.png`: Recency in days relative to snapshot date.
-- `offer_dependency_distribution.png`: Bimodal discount adoption and average discount percentage.
-- `category_diversity_distribution.png`: Distribution of merchandise category penetration.
-- `spend_trend_and_promo_lift.png`: Trimester spend changes and promotional AOV lift.
+- `customer_spending_distribution.png`: Histogram & KDE of Monetary and AOV (Currency Units).
+- `frequency_distribution.png`: Distribution of unique order counts per customer.
+- `recency_distribution.png`: Recency in calendar days relative to snapshot date (`2026-10-30`).
+- `offer_dependency_distribution.png`: Distribution of offer dependency ratio and average discount percentage.
+- `category_diversity_distribution.png`: Distribution of distinct merchandise categories purchased.
+- `spend_trend_and_promo_lift.png`: Trimester spend change and promotional AOV lift distributions.
 - `correlation_heatmap.png`: Full masked triangular correlation matrix.
 - `feature_summary_grid.png`: Multi-panel 10-feature distribution dashboard.

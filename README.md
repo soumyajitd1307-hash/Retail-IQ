@@ -37,7 +37,8 @@ Retail-IQ/
 ├── reports/
 │   ├── feature_definitions.md      # Detailed mathematical formulas and assumptions for all 10 features
 │   ├── role_b_eda_report.md        # Comprehensive exploratory findings and correlation analysis
-│   └── role_b_validation_report.md # Data quality audits, reconciliation, and customer walk-throughs
+│   ├── role_b_validation_report.md # Data quality audits, reconciliation, and customer walk-throughs
+│   └── role_c_handoff.md           # Role C handoff guide, loading instructions, and ML considerations
 ├── src/
 │   ├── __init__.py
 │   ├── feature_engineering.py      # Reusable, production-grade feature engineering pipeline
@@ -61,25 +62,27 @@ Retail-IQ/
 
 The pipeline processes 3,748 transaction records for 200 distinct customers, computing exactly one customer profile per row:
 
-| Feature Name | Dimension | Formula / Description | Range in Data |
-|---|---|---|---|
-| `recency_days` | RFM | Days from latest transaction to snapshot date (`2026-10-30`) | 1 to 163 days |
-| `frequency` | RFM | Count of unique orders (`order_id`) placed by customer | 3 to 45 orders |
-| `monetary` | RFM | Total spend (paid amount after discount) across all transactions | $902.82 to $75,582.94 |
-| `avg_order_value` | RFM | Monetary spend divided by frequency | $225.51 to $2,043.68 |
-| `offer_dependency` | Discount | Proportion of unique orders with applied discount (`is_discounted == 1`) | 0.0000 to 1.0000 |
-| `avg_discount_pct` | Discount | Average discount percentage across all customer orders | 0.00% to 35.28% |
-| `repeat_rate` | Loyalty | Six-month repeat rate: `(frequency - 1) / frequency` | 0.6667 to 0.9778 |
-| `category_diversity` | Merchandise | Count of distinct merchandise categories purchased (excluding `Unknown`) | 2 to 6 categories |
-| `spend_trend` | Dynamics | % change in spend from Trimester 1 (May–Jul) to Trimester 2 (Aug–Oct) | -100.0% to +164.13% (1 NaN) |
-| `promo_lift` | Promotion | % difference in AOV between discounted and non-discounted orders | -75.05% to +167.08% (23 NaNs) |
+| Feature Name | Dimension | Formula / Description | Range in Data | Units |
+|---|---|---|---|---|
+| `recency_days` | RFM | Days from latest transaction to snapshot date (`2026-10-30`) | 1 to 163 | Days |
+| `frequency` | RFM | Count of unique orders (`order_id`) placed by customer | 3 to 45 | Orders |
+| `monetary` | RFM | Total spend (paid amount after discount) across all transactions | 902.82 to 75,582.94 | Currency Units |
+| `avg_order_value` | RFM | Monetary spend divided by frequency | 225.51 to 2,043.68 | Currency Units |
+| `offer_dependency` | Discount | Proportion of unique orders with applied discount (`is_discounted == 1`) | 0.0000 to 1.0000 | Ratio |
+| `avg_discount_pct` | Discount | Average discount percentage across all customer orders | 0.00% to 35.28% | % |
+| `repeat_rate` | Loyalty | Six-month repeat rate: `(frequency - 1) / frequency` | 0.6667 to 0.9778 | Ratio |
+| `category_diversity` | Merchandise | Count of distinct merchandise categories purchased (excluding `Unknown`) | 2 to 6 | Categories |
+| `spend_trend` | Dynamics | % change in spend from Trimester 1 (May–Jul) to Trimester 2 (Aug–Oct) | -100.0% to +164.13% (1 NaN) | % |
+| `promo_lift` | Promotion | % difference in AOV between discounted and non-discounted orders | -75.05% to +167.08% (23 NaNs) | % |
 
 ### Key Governance & Methodology Rules:
 1. **Target Leakage Prevention:** `persona_true` is synthetic ground truth used strictly for downstream validation. It is **never** used as an input feature and is excluded from `customer_features.csv`.
 2. **Order-Level Accuracy:** `order_id` is used strictly for deduplication and unique-order counting, not as a numerical feature.
-3. **Strict Monetary Reconciliation:** The sum of customer-level `monetary` ($4,137,071.75) matches the transaction-level `amount` sum to the exact cent ($0.00 difference).
-4. **Preservation of Undefined Values:** Zero denominators are strictly preserved as `NaN`, never silently imputed as zero:
-   - `spend_trend`: `C0082` joined in Trimester 2 (Period 1 spend = $0); `spend_trend` is `NaN`.
+3. **Strict Monetary Reconciliation:** The sum of customer-level `monetary` (4,137,071.75 units) matches the transaction-level `amount` sum to the exact cent (0.00 units difference).
+4. **Currency Standardization:** Financial columns record values without an explicitly documented fiat currency (neither USD nor INR). Amounts are treated as standardized generic currency / monetary units.
+5. **Observational vs. Causal Lift:** No external campaign calendar exists in the repository. The metric `promo_lift` reflects observed pricing behavior between discounted and full-price orders, not causal campaign uplift.
+6. **Preservation of Undefined Values:** Zero denominators are strictly preserved as `NaN`, never silently imputed as zero:
+   - `spend_trend`: `C0082` joined in Trimester 2 (Period 1 spend = 0 units); `spend_trend` is `NaN`.
    - `promo_lift`: Customers lacking either discounted orders (20 customers) or non-discounted orders (3 customers) have `promo_lift` preserved as `NaN`.
 
 ---
@@ -145,10 +148,13 @@ Role C can directly ingest `customer_features.csv` for clustering and modeling:
 import pandas as pd
 
 features_df = pd.read_csv("customer_features.csv")
+print(features_df.head())
 print(features_df.shape)  # (200, 11)
+print(features_df.isnull().sum())
 ```
 
 For detailed guidance on missing value imputation, scaling recommendations, and mathematical definitions, refer to:
+- [`reports/role_c_handoff.md`](reports/role_c_handoff.md)
 - [`reports/feature_definitions.md`](reports/feature_definitions.md)
 - [`reports/role_b_validation_report.md`](reports/role_b_validation_report.md)
 - [`reports/role_b_eda_report.md`](reports/role_b_eda_report.md)
