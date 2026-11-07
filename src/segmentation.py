@@ -32,12 +32,15 @@ GOVERNANCE:
   - No cluster count (e.g. K=4) or numeric mapping is hardcoded.
 """
 
+import json
 import os
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Tuple, Optional
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -437,6 +440,7 @@ def generate_segment_profiles(
     df: pd.DataFrame,
     cluster_col: str = "cluster_id",
     segment_col: str = "segment_name",
+    currency: str = "",
 ) -> pd.DataFrame:
     """
     Generate comprehensive segment profiles aggregating all customer features.
@@ -446,6 +450,14 @@ def generate_segment_profiles(
       - total_revenue, pct_of_revenue
       - mean and median values across all key metrics
       - strategic playbook recommendations
+
+    Args:
+        df: Customer-level segmented DataFrame.
+        cluster_col: Column holding numeric cluster IDs.
+        segment_col: Column holding business segment names.
+        currency: Optional currency symbol prefix for playbook monetary
+                  references. Defaults to ``""`` (currency-neutral). Only
+                  pass a symbol when the monetary denomination is confirmed.
 
     Returns:
         pd.DataFrame: Formatted segment profile table ready for export.
@@ -498,7 +510,7 @@ def generate_segment_profiles(
             "median_aov": median_aov,
         })
 
-        playbook = generate_segment_strategic_playbook(seg_name, profile_row)
+        playbook = generate_segment_strategic_playbook(seg_name, profile_row, currency=currency)
         profile_row["strategic_playbook"] = playbook
         profiles.append(profile_row)
 
@@ -507,13 +519,90 @@ def generate_segment_profiles(
     return profile_df
 
 
+def _default_transformations() -> Dict[str, Any]:
+    """Return the canonical preprocessing transformation specification."""
+    return {
+        "recency_days": {"source": "recency_days", "method": "linear", "description": "Retained on natural calendar scale."},
+        "log_frequency": {"source": "frequency", "method": "log1p", "description": "np.log1p(max(frequency, 0))."},
+        "log_monetary": {"source": "monetary", "method": "log1p", "description": "np.log1p(max(monetary, 0))."},
+        "log_aov": {"source": "avg_order_value", "method": "log1p", "description": "np.log1p(max(avg_order_value, 0))."},
+        "offer_dependency": {"source": "offer_dependency", "method": "linear", "description": "Retained on natural ratio scale [0.0, 1.0]."},
+        "spend_trend": {"source": "spend_trend", "method": "linear", "description": "Retained on natural percent-change scale; median-imputed when missing (see imputation)."},
+        "scaling": {"method": "StandardScaler", "description": "Per-feature z-score: (x - mean) / scale fitted on candidate matrix."},
+    }
+
+
+def _default_scoring_config(currency: str = "") -> Dict[str, Any]:
+    """Return the canonical scoring-engine configuration (mirrors src/scoring.py defaults)."""
+    return {
+        "loyalty_score": {
+            "weights": {"recency": 0.30, "frequency": 0.35, "monetary": 0.35},
+            "bounds": [0.0, 100.0],
+            "note": "Cohort-relative min-max normalization; see reports for longitudinal anchoring guidance.",
+        },
+        "offer_sensitivity_score": {
+            "weights": {"incidence": 0.70, "depth": 0.30},
+            "depth_ceiling": 50.0,
+            "bounds": [0.0, 100.0],
+            "zero_discount_rule": "offer_dependency == 0.0 maps exactly to 0.0.",
+        },
+        "currency": currency,
+        "currency_note": "Empty string means currency-neutral (no fiat denomination assumed).",
+    }
+
+
 def save_artifacts(
     model: KMeans,
     scaler: StandardScaler,
     candidate_name: str,
     output_dir: str = "models",
+    feature_names: Optional[List[str]] = None,
+    transformations: Optional[Dict[str, Any]] = None,
+    imputation_meta: Optional[Dict[str, Any]] = None,
+    evaluation_metrics: Optional[Dict[str, Any]] = None,
+    dataset_info: Optional[Dict[str, Any]] = None,
+    scoring_config: Optional[Dict[str, Any]] = None,
+    random_state: int = 42,
 ) -> None:
-    """Persist fitted K-Means model and scaler artifacts."""
+    """
+    Persist fitted K-Means model, scaler, and comprehensive reproducible metadata.
+
+    Writes three artifacts to ``output_dir``:
+      - ``kmeans_selected_model.joblib``: serialized fitted KMeans.
+      - ``scaler_selected.joblib``: serialized fitted StandardScaler.
+      - ``model_metadata.json``: human- and machine-readable run manifest.
+
+    The JSON manifest always contains the following top-level keys so that
+    consumers can rely on a stable schema even when callers omit optional
+    arguments (in which case sensible defaults are recorded):
+      - candidate_set, n_clusters
+      - feature_names, feature_name_order, feature_count
+      - transformations
+      - imputation
+      - scaler (nested config: type, mean, scale, var, n_samples_seen, features)
+      - hyperparameters (full KMeans ``get_params()``)
+      - cluster_centers, scaler_mean, scaler_scale (backward-compatible flat fields)
+      - evaluation_metrics (silhouette, Davies-Bouldin, Calinski-Harabasz, inertia,
+        stability ARI, cluster sizes — when supplied)
+      - dataset_info (n_customers, source file/shape, total revenue — when supplied)
+      - scoring_config (loyalty / offer-sensitivity weights, depth ceiling, currency)
+      - random_state, reproducibility (timestamp, sklearn version)
+
+    Args:
+        model: Fitted KMeans instance.
+        scaler: Fitted StandardScaler instance (fitted on the candidate matrix).
+        candidate_name: Selected candidate set name (key of CANDIDATE_SET_DEFINITIONS).
+        output_dir: Destination directory for artifacts.
+        feature_names: Ordered feature names used for clustering. If None, inferred
+                       from ``scaler.feature_names_in_`` or CANDIDATE_SET_DEFINITIONS.
+        transformations: Transformation spec dict. If None, canonical defaults are used.
+        imputation_meta: Imputation report from load_and_preprocess_customer_features.
+        evaluation_metrics: Selection/evaluation metrics (e.g. rationale dict).
+        dataset_info: Dataset provenance dict (source path, n_customers, etc.).
+        scoring_config: Scoring configuration dict. If None, defaults mirroring
+                        src/scoring.py are recorded.
+        random_state: Random seed used for the final KMeans fit.
+    """
     os.makedirs(output_dir, exist_ok=True)
     model_path = os.path.join(output_dir, "kmeans_selected_model.joblib")
     scaler_path = os.path.join(output_dir, "scaler_selected.joblib")
@@ -522,14 +611,112 @@ def save_artifacts(
     joblib.dump(model, model_path)
     joblib.dump(scaler, scaler_path)
 
-    import json
+    # Resolve ordered feature names (explicit > scaler > candidate definition).
+    if feature_names is None:
+        if hasattr(scaler, "feature_names_in_") and scaler.feature_names_in_ is not None:
+            feature_names = [str(f) for f in list(scaler.feature_names_in_)]
+        elif candidate_name in CANDIDATE_SET_DEFINITIONS:
+            feature_names = list(CANDIDATE_SET_DEFINITIONS[candidate_name])
+        else:
+            feature_names = []
+    feature_names = list(feature_names)
+
+    if transformations is None:
+        transformations = _default_transformations()
+    if imputation_meta is None:
+        imputation_meta = {}
+    if evaluation_metrics is None:
+        evaluation_metrics = {}
+    if dataset_info is None:
+        # Infer a minimal dataset record from the scaler when caller provides none.
+        n_seen = None
+        try:
+            n_seen = int(np.asarray(scaler.n_samples_seen_).flat[0])
+        except Exception:
+            n_seen = None
+        dataset_info = {"n_customers": n_seen, "source": "unknown (not supplied by caller)"}
+    if scoring_config is None:
+        scoring_config = _default_scoring_config()
+
+    # Hyperparameters straight from the fitted estimator for exact reproducibility.
+    try:
+        hyperparameters = dict(model.get_params())
+    except Exception:
+        hyperparameters = {
+            "n_clusters": int(model.n_clusters),
+            "init": getattr(model, "init", "k-means++"),
+            "n_init": getattr(model, "n_init", 50),
+            "max_iter": getattr(model, "max_iter", 500),
+            "tol": getattr(model, "tol", 1e-5),
+            "random_state": random_state,
+        }
+    # Ensure JSON-serializable (tuples -> lists, numpy types -> native).
+    def _to_serializable(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {str(k): _to_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_to_serializable(v) for v in obj]
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.bool_,)):
+            return bool(obj)
+        if isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        return obj
+
+    hyperparameters = _to_serializable(hyperparameters)
+    evaluation_metrics = _to_serializable(evaluation_metrics)
+    dataset_info = _to_serializable(dataset_info)
+    scoring_config = _to_serializable(scoring_config)
+    transformations = _to_serializable(transformations)
+    imputation_meta = _to_serializable(imputation_meta)
+
+    # Scaler configuration (nested, explicit).
+    try:
+        scaler_var = [float(v) for v in np.asarray(scaler.var_).tolist()]
+    except Exception:
+        scaler_var = []
+    try:
+        n_samples_seen = [int(v) for v in np.asarray(scaler.n_samples_seen_).tolist()] if hasattr(scaler, "n_samples_seen_") else []
+    except Exception:
+        n_samples_seen = []
+    scaler_config = {
+        "type": "StandardScaler",
+        "mean": [float(v) for v in np.asarray(scaler.mean_).tolist()],
+        "scale": [float(v) for v in np.asarray(scaler.scale_).tolist()],
+        "var": scaler_var,
+        "n_samples_seen": n_samples_seen,
+        "feature_names": list(feature_names),
+        "feature_name_order": list(feature_names),
+    }
+
     metadata = {
         "candidate_set": candidate_name,
         "n_clusters": int(model.n_clusters),
-        "cluster_centers": model.cluster_centers_.tolist(),
-        "scaler_mean": scaler.mean_.tolist(),
-        "scaler_scale": scaler.scale_.tolist(),
+        "feature_names": list(feature_names),
+        "feature_name_order": list(feature_names),
+        "feature_count": len(feature_names),
+        "transformations": transformations,
+        "imputation": imputation_meta,
+        "scaler": scaler_config,
+        "hyperparameters": hyperparameters,
+        "cluster_centers": [list(map(float, c)) for c in np.asarray(model.cluster_centers_).tolist()],
+        "scaler_mean": scaler_config["mean"],
+        "scaler_scale": scaler_config["scale"],
+        "evaluation_metrics": evaluation_metrics,
+        "dataset_info": dataset_info,
+        "scoring_config": scoring_config,
+        "random_state": int(random_state),
+        "reproducibility": {
+            "saved_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "sklearn_version": str(sklearn.__version__),
+            "candidate_set": candidate_name,
+            "n_clusters": int(model.n_clusters),
+        },
     }
+
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
