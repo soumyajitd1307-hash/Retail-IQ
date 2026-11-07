@@ -1,6 +1,114 @@
 {
   "candidate_set": "Candidate 1 (Classic RFM-P)",
   "n_clusters": 4,
+  "feature_names": [
+    "recency_days",
+    "log_frequency",
+    "log_monetary",
+    "offer_dependency"
+  ],
+  "feature_name_order": [
+    "recency_days",
+    "log_frequency",
+    "log_monetary",
+    "offer_dependency"
+  ],
+  "feature_count": 4,
+  "transformations": {
+    "recency_days": {
+      "source": "recency_days",
+      "method": "linear",
+      "description": "Retained on natural calendar scale."
+    },
+    "log_frequency": {
+      "source": "frequency",
+      "method": "log1p",
+      "description": "np.log1p(max(frequency, 0))."
+    },
+    "log_monetary": {
+      "source": "monetary",
+      "method": "log1p",
+      "description": "np.log1p(max(monetary, 0))."
+    },
+    "log_aov": {
+      "source": "avg_order_value",
+      "method": "log1p",
+      "description": "np.log1p(max(avg_order_value, 0))."
+    },
+    "offer_dependency": {
+      "source": "offer_dependency",
+      "method": "linear",
+      "description": "Retained on natural ratio scale [0.0, 1.0]."
+    },
+    "spend_trend": {
+      "source": "spend_trend",
+      "method": "linear",
+      "description": "Retained on natural percent-change scale; median-imputed when missing (see imputation)."
+    },
+    "scaling": {
+      "method": "StandardScaler",
+      "description": "Per-feature z-score: (x - mean) / scale fitted on candidate matrix."
+    }
+  },
+  "imputation": {
+    "spend_trend": {
+      "method": "cohort_median",
+      "imputed_value": -39.9296,
+      "affected_customer_count": 1,
+      "affected_customers": [
+        "C0082"
+      ]
+    },
+    "promo_lift": {
+      "status": "excluded_from_clustering_preserved_for_profiling",
+      "null_count": 23
+    }
+  },
+  "scaler": {
+    "type": "StandardScaler",
+    "mean": [
+      48.04,
+      2.7664638935930577,
+      9.40587216918457,
+      0.36174300000000004
+    ],
+    "scale": [
+      36.59656268012066,
+      0.7035670274444992,
+      1.1274971113002732,
+      0.30473702819152126
+    ],
+    "var": [
+      1339.3084000000003,
+      0.4950065621070887,
+      1.2712497359904604,
+      0.09286465635100001
+    ],
+    "n_samples_seen": [],
+    "feature_names": [
+      "recency_days",
+      "log_frequency",
+      "log_monetary",
+      "offer_dependency"
+    ],
+    "feature_name_order": [
+      "recency_days",
+      "log_frequency",
+      "log_monetary",
+      "offer_dependency"
+    ]
+  },
+  "hyperparameters": {
+    "algorithm": "lloyd",
+    "copy_x": true,
+    "init": "k-means++",
+    "max_iter": 500,
+    "n_clusters": 4,
+    "n_init": 50,
+    "random_state": 42,
+    "tol": 1e-05,
+    "verbose": 0
+  },
   "cluster_centers": [
     [
       -1.0727783465119276,
@@ -38,5 +146,77 @@
     0.7035670274444992,
     1.1274971113002732,
     0.30473702819152126
-  ]
+  ],
+  "evaluation_metrics": {
+    "selected_candidate_set": "Candidate 1 (Classic RFM-P)",
+    "selected_k": 4,
+    "features": "recency_days, log_frequency, log_monetary, offer_dependency",
+    "silhouette_score": 0.5814,
+    "davies_bouldin_index": 0.6503,
+    "calinski_harabasz_score": 281.92,
+    "min_cluster_size": 40,
+    "stability_ari_mean": 1.0,
+    "selection_justification": "Selected Candidate 1 (Classic RFM-P) at K=4 with highest composite separation (Silhouette=0.5814, DB Index=0.6503, Stability ARI=1.0000). Cluster sizes [50, 61, 40, 49] are well-balanced with zero degenerate clusters and distinct commercial interpretability.",
+    "inertia": 150.51,
+    "cluster_sizes": "[50, 61, 40, 49]",
+    "min_cluster_silhouette": 0.3795,
+    "negative_silhouette_count": 1
+  },
+  "dataset_info": {
+    "source": "customer_features.csv",
+    "n_customers": 200,
+    "n_features_total": 14,
+    "total_monetary": 4137071.75,
+    "columns": [
+      "customer_id",
+      "recency_days",
+      "frequency",
+      "monetary",
+      "avg_order_value",
+      "offer_dependency",
+      "avg_discount_pct",
+      "repeat_rate",
+      "category_diversity",
+      "spend_trend",
+      "promo_lift",
+      "log_monetary",
+      "log_frequency",
+      "log_aov"
+    ]
+  },
+  "scoring_config": {
+    "loyalty_score": {
+      "weights": {
+        "recency": 0.3,
+        "frequency": 0.35,
+        "monetary": 0.35
+      },
+      "bounds": [
+        0.0,
+        100.0
+      ],
+      "note": "Cohort-relative min-max normalization; see reports for longitudinal anchoring guidance."
+    },
+    "offer_sensitivity_score": {
+      "weights": {
+        "incidence": 0.7,
+        "depth": 0.3
+      },
+      "depth_ceiling": 50.0,
+      "bounds": [
+        0.0,
+        100.0
+      ],
+      "zero_discount_rule": "offer_dependency == 0.0 maps exactly to 0.0."
+    },
+    "currency": "",
+    "currency_note": "Empty string means currency-neutral (no fiat denomination assumed)."
+  },
+  "random_state": 42,
+  "reproducibility": {
+    "saved_at_utc": "2026-11-07T08:38:30.528170Z",
+    "sklearn_version": "1.9.1",
+    "candidate_set": "Candidate 1 (Classic RFM-P)",
+    "n_clusters": 4
+  }
 }

@@ -23,7 +23,7 @@ import os
 import sys
 import json
 import logging
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Optional, Set, Tuple
 import pandas as pd
 import numpy as np
 
@@ -40,7 +40,7 @@ from src.segmentation import (
     save_artifacts,
 )
 from src.scoring import compute_rfm_loyalty_score, compute_offer_sensitivity_score
-from src.recommendations import attach_recommendations
+from src.recommendations import attach_recommendations, DEFAULT_CURRENCY
 from src.cluster_validation import evaluate_persona_alignment
 
 logging.basicConfig(
@@ -56,13 +56,123 @@ REPORTS_DIR = "reports"
 MODELS_DIR = "models"
 
 
+def validate_pipeline_outputs(
+    final_customer_df: pd.DataFrame,
+    segment_profiles_df: pd.DataFrame,
+    persona_validation_results: Dict[str, Any],
+    expected_customer_ids: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Data-integrity checks that reconcile pipeline outputs without assuming a
+    fixed customer count (no hardcoded population size).
+
+    Verifies:
+      - Output is non-empty and customer IDs are unique.
+      - Every output customer appears exactly once in the profiles
+        (count reconciliation between the customer feed and the segment feed).
+      - Monetary totals reconcile between the customer feed and the segment
+        feed to within half a cent per record (rounding tolerance).
+      - When an expected ID set is supplied (e.g. the input feature matrix),
+        the output population matches it exactly (no silent loss/addition).
+      - When persona validation counts are available, they reconcile with the
+        customer feed length.
+      - No null cluster assignments or segment labels.
+
+    Args:
+        final_customer_df: Customer-level segmented output.
+        segment_profiles_df: Segment-level aggregate output.
+        persona_validation_results: Dict returned by evaluate_persona_alignment.
+        expected_customer_ids: Optional set of input customer IDs for strict
+                               population reconciliation.
+
+    Returns:
+        Dict[str, Any]: Reconciliation summary (counts, revenue totals, flags).
+
+    Raises:
+        AssertionError: When any reconciliation check fails, with a descriptive
+                        message identifying the mismatch.
+    """
+    total_cust = len(final_customer_df)
+    assert total_cust > 0, "Segmented customer output is empty."
+
+    assert "customer_id" in final_customer_df.columns, "Missing 'customer_id' in segmented output."
+    assert final_customer_df["customer_id"].is_unique, (
+        f"Segmented output contains duplicate customer_id values: "
+        f"{final_customer_df['customer_id'].duplicated().sum()} duplicate row(s)."
+    )
+
+    # Cluster / segment completeness.
+    if "cluster_id" in final_customer_df.columns:
+        assert final_customer_df["cluster_id"].isna().sum() == 0, "Null cluster_id values in segmented output."
+    if "segment_name" in final_customer_df.columns:
+        assert final_customer_df["segment_name"].isna().sum() == 0, "Null segment_name values in segmented output."
+
+    # Population reconciliation against the input feature matrix (when supplied).
+    if expected_customer_ids is not None:
+        output_ids = set(final_customer_df["customer_id"].tolist())
+        missing = sorted(set(expected_customer_ids) - output_ids)
+        extra = sorted(output_ids - set(expected_customer_ids))
+        assert not missing and not extra, (
+            f"Customer population mismatch vs. input features: "
+            f"{len(missing)} missing {missing[:10]}, {len(extra)} extra {extra[:10]}."
+        )
+
+    # Customer-count reconciliation between the two deliverables.
+    profile_cust = int(segment_profiles_df["customer_count"].sum()) if "customer_count" in segment_profiles_df.columns else -1
+    assert profile_cust == total_cust, (
+        f"Customer-count mismatch: customer feed has {total_cust} rows but segment profiles "
+        f"sum to {profile_cust}."
+    )
+
+    # Revenue reconciliation between the two deliverables.
+    total_rev = round(float(final_customer_df["monetary"].sum()), 2) if "monetary" in final_customer_df.columns else 0.0
+    profile_rev = round(float(segment_profiles_df["total_revenue"].sum()), 2) if "total_revenue" in segment_profiles_df.columns else 0.0
+    revenue_diff = abs(total_rev - profile_rev)
+    # Tolerance absorbs per-segment cent-rounding (profile totals are sums of
+    # rounded per-segment values). Scales with the number of segments, not
+    # the customer count, so the check stays valid for any population size.
+    n_segments = len(segment_profiles_df) if len(segment_profiles_df) else 1
+    tolerance = 0.01 * n_segments + 0.05
+    assert revenue_diff < tolerance, (
+        f"Revenue discrepancy between customer feed ({total_rev}) and segment profiles "
+        f"({profile_rev}): diff={revenue_diff} exceeds tolerance {tolerance:.2f}."
+    )
+
+    # Persona-validation reconciliation (when counts are reported).
+    validated_count = persona_validation_results.get("validated_customer_count")
+    if validated_count is not None:
+        assert int(validated_count) == total_cust, (
+            f"Persona validation covered {validated_count} customers but segmented output "
+            f"has {total_cust}."
+        )
+
+    return {
+        "total_customers": total_cust,
+        "profile_customer_sum": profile_cust,
+        "total_revenue": total_rev,
+        "profile_revenue": profile_rev,
+        "revenue_discrepancy": round(float(revenue_diff), 4),
+        "validated_customer_count": int(validated_count) if validated_count is not None else None,
+        "all_checks_passed": True,
+    }
+
+
 def run_pipeline(
     features_path: str = "customer_features.csv",
     transactions_path: str = "data/transactions_clean.csv",
     random_state: int = 42,
+    currency: str = DEFAULT_CURRENCY,
 ) -> Dict[str, Any]:
     """
     Execute full Role C customer segmentation workflow.
+
+    Args:
+        features_path: Path to customer-level feature matrix (Role B output).
+        transactions_path: Path to cleaned transactions (persona validation only).
+        random_state: Random seed for KMeans reproducibility.
+        currency: Currency symbol prefix for recommendation monetary wording.
+                  Defaults to ``""`` (currency-neutral; no fiat denomination
+                  is assumed). Pass a symbol only when confirmed.
 
     Returns:
         Dict[str, Any]: Execution metadata and summary results.
@@ -93,7 +203,55 @@ def run_pipeline(
     best_candidate, best_k, model, scaler, X_best, rationale = select_best_model(
         metrics_df, candidate_matrices, random_state=random_state
     )
-    save_artifacts(model, scaler, best_candidate, output_dir=MODELS_DIR)
+    # Best-row evaluation metrics for the persisted manifest.
+    _best_rows = metrics_df[
+        (metrics_df["candidate_set"] == best_candidate) & (metrics_df["k"] == best_k)
+    ]
+    _evaluation = dict(rationale)
+    if not _best_rows.empty:
+        _evaluation.update(
+            {
+                "inertia": float(_best_rows.iloc[0]["inertia"]),
+                "cluster_sizes": str(_best_rows.iloc[0]["cluster_sizes"]),
+                "min_cluster_size": int(_best_rows.iloc[0]["min_cluster_size"]),
+                "min_cluster_silhouette": float(_best_rows.iloc[0]["min_cluster_silhouette"]),
+                "negative_silhouette_count": int(_best_rows.iloc[0]["negative_silhouette_count"]),
+            }
+        )
+    _dataset_info = {
+        "source": features_path,
+        "n_customers": int(len(df_preprocessed)),
+        "n_features_total": int(df_preprocessed.shape[1]),
+        "total_monetary": round(float(df_preprocessed["monetary"].sum()), 2) if "monetary" in df_preprocessed.columns else None,
+        "columns": list(df_preprocessed.columns),
+    }
+    _scoring_config = {
+        "loyalty_score": {
+            "weights": {"recency": 0.30, "frequency": 0.35, "monetary": 0.35},
+            "bounds": [0.0, 100.0],
+            "note": "Cohort-relative min-max normalization; see reports for longitudinal anchoring guidance.",
+        },
+        "offer_sensitivity_score": {
+            "weights": {"incidence": 0.70, "depth": 0.30},
+            "depth_ceiling": 50.0,
+            "bounds": [0.0, 100.0],
+            "zero_discount_rule": "offer_dependency == 0.0 maps exactly to 0.0.",
+        },
+        "currency": currency,
+        "currency_note": "Empty string means currency-neutral (no fiat denomination assumed).",
+    }
+    save_artifacts(
+        model,
+        scaler,
+        best_candidate,
+        output_dir=MODELS_DIR,
+        feature_names=list(X_best.columns),
+        imputation_meta=imputation_meta,
+        evaluation_metrics=_evaluation,
+        dataset_info=_dataset_info,
+        scoring_config=_scoring_config,
+        random_state=random_state,
+    )
 
     # Step 4: Cluster Assignment & Behavioral Scoring
     logger.info(f"[Step 4/7] Generating cluster assignments for {best_candidate} at K={best_k}...")
@@ -127,7 +285,7 @@ def run_pipeline(
 
     # Step 6: Generate Prescriptive Recommendations
     logger.info("[Step 6/7] Generating transparent, data-backed recommendations...")
-    df_final = attach_recommendations(df_preprocessed)
+    df_final = attach_recommendations(df_preprocessed, currency=currency)
 
     # Reorder columns to guarantee exact Role D contract
     primary_cols = [
@@ -155,7 +313,7 @@ def run_pipeline(
     logger.info(f"Exported segmented customer records to {segmented_csv_path} ({len(final_customer_df)} rows)")
 
     # Generate segment-level aggregate profiles
-    segment_profiles_df = generate_segment_profiles(final_customer_df)
+    segment_profiles_df = generate_segment_profiles(final_customer_df, currency=currency)
     profiles_csv_path = os.path.join(DATA_DIR, "segment_profiles.csv")
     segment_profiles_df.to_csv(profiles_csv_path, index=False)
     logger.info(f"Exported segment profiles to {profiles_csv_path} ({len(segment_profiles_df)} rows)")
@@ -166,15 +324,21 @@ def run_pipeline(
         final_customer_df, transactions_path=transactions_path
     )
 
-    # Verification checks
-    total_cust = len(final_customer_df)
-    total_rev = round(float(final_customer_df["monetary"].sum()), 2)
-    profile_cust = int(segment_profiles_df["customer_count"].sum())
-    profile_rev = round(float(segment_profiles_df["total_revenue"].sum()), 2)
-
-    assert total_cust == 200, f"Expected 200 customers, got {total_cust}"
-    assert profile_cust == 200, f"Profile customers sum {profile_cust} != 200"
-    assert abs(total_rev - profile_rev) < 0.05, f"Revenue discrepancy: {total_rev} vs {profile_rev}"
+    # Verification checks (flexible: no hardcoded population size).
+    # Reconciles customer counts and revenue between the customer feed and
+    # the segment feed, plus population vs. the input feature matrix and
+    # persona-validation coverage. Works for any customer count.
+    _expected_ids = set(df_preprocessed["customer_id"].tolist())
+    reconciliation = validate_pipeline_outputs(
+        final_customer_df,
+        segment_profiles_df,
+        persona_validation_results,
+        expected_customer_ids=_expected_ids,
+    )
+    total_cust = reconciliation["total_customers"]
+    total_rev = reconciliation["total_revenue"]
+    profile_cust = reconciliation["profile_customer_sum"]
+    profile_rev = reconciliation["profile_revenue"]
 
     logger.info("=================================================================")
     logger.info("   ROLE C PIPELINE COMPLETED SUCCESSFULLY!")
@@ -197,6 +361,8 @@ def run_pipeline(
         "customer_output": segmented_csv_path,
         "profiles_output": profiles_csv_path,
         "metrics_output": metrics_csv_path,
+        "reconciliation": reconciliation,
+        "currency": currency,
     }
 
 

@@ -13,20 +13,40 @@ Recommendations are derived from:
   4. Offer Sensitivity Score (Promotional dependency level)
   5. Loyalty Score (Retention strength)
 
+Currency Handling:
+  - Monetary references in recommendations default to currency-neutral phrasing
+    (e.g., "10% off on 300+ units" rather than "$50 off $300").
+  - If a specific currency symbol is required, pass the ``currency`` parameter
+    to ``attach_recommendations()`` or the individual generator functions.
+    The symbol is prepended to any monetary threshold references.
+  - The dataset does not establish a fiat currency denomination; no USD assumption
+    is made.
+
 Governance:
   - Every recommendation is explainable strictly from observed empirical data.
   - Avoids unsupported claims regarding unobserved customer motives.
-  - Tailors prescriptive actions to protect retail margins and maximize customer lifetime value.
+  - Tailors prescriptive actions to protect retail margins and maximise CLV.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import pandas as pd
 
 logger = logging.getLogger("recommendations")
 
+# Default: no currency symbol (currency-neutral).
+DEFAULT_CURRENCY = ""
 
-def generate_customer_recommendation(row: pd.Series) -> str:
+
+def _fmt_threshold(value: int, currency: str = DEFAULT_CURRENCY) -> str:
+    """Return a currency-prefixed monetary threshold string, e.g. '300' or '$300'."""
+    return f"{currency}{value}"
+
+
+def generate_customer_recommendation(
+    row: pd.Series,
+    currency: str = DEFAULT_CURRENCY,
+) -> str:
     """
     Generate an explainable, data-backed primary recommendation for a customer.
 
@@ -39,6 +59,8 @@ def generate_customer_recommendation(row: pd.Series) -> str:
              - loyalty_score
              - offer_sensitivity_score
              - avg_order_value
+        currency: Optional currency symbol prefix (e.g. ``"$"``, ``"€"``, ``"₹"``).
+                  Defaults to ``""`` (currency-neutral).
 
     Returns:
         str: Concise, actionable marketing recommendation.
@@ -67,9 +89,11 @@ def generate_customer_recommendation(row: pd.Series) -> str:
     # Segment 2: Offer-Sensitive (Deal Seekers / Promotional Buyers)
     elif "offer" in segment or "deal" in segment or "promo" in segment:
         if aov > 1000.0:
+            threshold = _fmt_threshold(300, currency)
             return (
-                "Deploy tiered minimum-spend thresholds (e.g., save $50 on $300+) to capture high basket size "
-                "while maintaining gross margin. Target category bundles rather than direct markdowns."
+                f"Deploy tiered minimum-spend thresholds (e.g., 10% off on {threshold}+ spend) to "
+                "capture high basket size while maintaining gross margin. Target category bundles "
+                "rather than direct markdowns."
             )
         elif recency > 60:
             return (
@@ -87,7 +111,7 @@ def generate_customer_recommendation(row: pd.Series) -> str:
         if monetary > 15000.0:
             return (
                 "High-priority executive win-back campaign: send personalized re-engagement survey with an "
-                "attractive return credit on historical favorite categories to reactivate premium buyer."
+                "attractive return credit on historical favourite categories to reactivate premium buyer."
             )
         else:
             return (
@@ -117,7 +141,7 @@ def generate_customer_recommendation(row: pd.Series) -> str:
     elif "ticket" in segment or "bulk" in segment:
         return (
             "Present premium tier collections, volume corporate purchase options, and dedicated account support "
-            "to maximize revenue per transaction."
+            "to maximise revenue per transaction."
         )
 
     # Fallback / General Data-Driven Rule
@@ -132,13 +156,18 @@ def generate_customer_recommendation(row: pd.Series) -> str:
             return "Standard catalog engagement and nurture campaign to build purchase frequency."
 
 
-def generate_segment_strategic_playbook(segment_name: str, profile_row: pd.Series) -> str:
+def generate_segment_strategic_playbook(
+    segment_name: str,
+    profile_row: pd.Series,
+    currency: str = DEFAULT_CURRENCY,
+) -> str:
     """
     Generate an executive-level strategic playbook for a segment aggregate profile.
 
     Args:
         segment_name: Name of the business segment.
         profile_row: Aggregate metric Series for the segment.
+        currency: Optional currency symbol prefix. Defaults to ``""`` (currency-neutral).
 
     Returns:
         str: Strategic executive recommendation.
@@ -173,18 +202,26 @@ def generate_segment_strategic_playbook(segment_name: str, profile_row: pd.Serie
         return "Targeted customer engagement balancing retention incentives with margin preservation."
 
 
-def attach_recommendations(df: pd.DataFrame) -> pd.DataFrame:
+def attach_recommendations(
+    df: pd.DataFrame,
+    currency: str = DEFAULT_CURRENCY,
+) -> pd.DataFrame:
     """
     Attach primary_recommendation column to customer-level DataFrame.
 
     Args:
         df: Customer DataFrame containing segment_name and customer metrics.
+        currency: Optional currency symbol prefix (e.g. ``"$"``, ``"€"``, ``"₹"``).
+                  Defaults to ``""`` (currency-neutral). Pass a symbol only when
+                  the dataset's monetary denomination has been confirmed.
 
     Returns:
         pd.DataFrame: DataFrame with 'primary_recommendation' column added.
     """
     logger.info("Generating customer-level data-backed recommendations...")
     df = df.copy()
-    df["primary_recommendation"] = df.apply(generate_customer_recommendation, axis=1)
+    df["primary_recommendation"] = df.apply(
+        lambda row: generate_customer_recommendation(row, currency=currency),
+        axis=1,
+    )
     return df
-
