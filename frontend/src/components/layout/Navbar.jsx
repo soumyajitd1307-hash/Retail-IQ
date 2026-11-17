@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Menu,
@@ -11,6 +11,25 @@ import dataService from '../../services/dataService';
 
 export default function Navbar({ onMenuToggle }) {
   const location = useLocation();
+  const [customerCount, setCustomerCount] = useState(null);
+  const [playbookCount, setPlaybookCount] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    dataService.getOverviewStats()
+      .then((stats) => { if (active) setCustomerCount(stats.totalCustomers ?? null); })
+      .catch(() => {});
+    dataService.getSegmentProfiles()
+      .then((profiles) => {
+        if (!active) return;
+        const count = (Array.isArray(profiles) ? profiles : []).filter(
+          (p) => typeof p?.strategic_playbook === 'string' && p.strategic_playbook.trim()
+        ).length;
+        setPlaybookCount(count > 0 ? count : null);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const getPageInfo = () => {
     switch (location.pathname) {
@@ -30,7 +49,7 @@ export default function Navbar({ onMenuToggle }) {
         return {
           titlePrefix: 'Cohort',
           titleHighlight: 'Customer Explorer',
-          subtitle: 'Granular 200-customer directory with multi-factor filtering and ML prescriptions',
+          subtitle: 'Granular customer directory with multi-factor filtering and ML prescriptions',
         };
       case '/rfm':
         return {
@@ -91,7 +110,7 @@ export default function Navbar({ onMenuToggle }) {
         {/* Synthetic dataset tag */}
         <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#22251F]/80 border border-[#A18A52]/30 text-xs font-semibold text-[#EAE7DB] shadow-inner">
           <Database className="w-3.5 h-3.5 text-[#D5B66E]" />
-          <span>200 Customers</span>
+          <span>{customerCount ?? '—'} Customers</span>
           <span className="text-[#A18A52]/50">•</span>
           <span className="text-[#A5B86A] font-medium">Synthetic Cohort</span>
         </div>
@@ -119,7 +138,9 @@ export default function Navbar({ onMenuToggle }) {
         {/* Notification indicator */}
         <div className="relative">
           <button
-            title="4 Active Strategic Playbooks Available"
+            title={playbookCount != null
+              ? `${playbookCount} Strategic Playbooks Available`
+              : 'Strategic Playbooks'}
             className="p-2 rounded-xl text-[#EAE7DB]/70 hover:text-[#FFF3D1] hover:bg-[#303629]/40 border border-transparent hover:border-[#A18A52]/25 transition-all"
           >
             <Bell className="w-4 h-4 text-[#D5B66E]" />

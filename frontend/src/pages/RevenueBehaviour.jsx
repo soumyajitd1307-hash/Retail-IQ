@@ -29,7 +29,7 @@ import {
 } from 'recharts';
 import dataService from '../services/dataService';
 import KpiCard from '../components/common/KpiCard';
-import { formatCurrency, formatCompactCurrency, formatNumber, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatCompactCurrency, formatNumber, formatPercent, getCurrencyPrefix } from '../utils/formatters';
 import { getSegmentStyle, COLORS, CHART_COLORS } from '../utils/theme';
 
 const fadeInUp = {
@@ -44,6 +44,7 @@ const staggerContainer = {
 
 export default function RevenueBehaviour() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [stats, setStats] = useState(null);
   const [segmentData, setSegmentData] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
@@ -59,6 +60,10 @@ export default function RevenueBehaviour() {
         setAllCustomers(customers);
       } catch (err) {
         console.error('Failed to load revenue data:', err);
+        setStats(null);
+        setSegmentData([]);
+        setAllCustomers([]);
+        setError(true);
       } finally {
         setLoading(false);
       }
@@ -66,7 +71,7 @@ export default function RevenueBehaviour() {
     loadData();
   }, []);
 
-  if (loading || !stats) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="flex flex-col items-center gap-3">
@@ -77,24 +82,35 @@ export default function RevenueBehaviour() {
     );
   }
 
+  if (error || !stats) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-xs font-semibold text-[#EAE7DB]/60">Revenue analytics are currently unavailable.</p>
+        </div>
+      </div>
+    );
+  }
+
   // Revenue by segment for area chart 
   const revenueBySegment = segmentData.map(s => ({
-    name: s.segment_name.split(' ').slice(0, 2).join(' '),
-    fullName: s.segment_name,
-    revenue: s.total_revenue,
-    customers: s.customer_count,
-    avgSpend: s.total_revenue / s.customer_count,
+    name: (s.segment_name || '—').split(' ').slice(0, 2).join(' '),
+    fullName: s.segment_name || '—',
+    revenue: s.total_revenue ?? 0,
+    customers: s.customer_count ?? 0,
+    avgSpend: s.customer_count > 0 ? (s.total_revenue ?? 0) / s.customer_count : null,
     aov: s.mean_aov,
     revenuePct: s.pct_of_revenue,
   }));
 
-  // CLV distribution buckets
+  // CLV distribution buckets (labels follow the configured currency, if any)
+  const currencyPrefix = getCurrencyPrefix();
   const clvBuckets = [
-    { name: '<$5k', count: 0, totalRev: 0 },
-    { name: '$5k-$15k', count: 0, totalRev: 0 },
-    { name: '$15k-$30k', count: 0, totalRev: 0 },
-    { name: '$30k-$50k', count: 0, totalRev: 0 },
-    { name: '>$50k', count: 0, totalRev: 0 },
+    { name: `<${currencyPrefix}5k`, count: 0, totalRev: 0 },
+    { name: `${currencyPrefix}5k-${currencyPrefix}15k`, count: 0, totalRev: 0 },
+    { name: `${currencyPrefix}15k-${currencyPrefix}30k`, count: 0, totalRev: 0 },
+    { name: `${currencyPrefix}30k-${currencyPrefix}50k`, count: 0, totalRev: 0 },
+    { name: `>${currencyPrefix}50k`, count: 0, totalRev: 0 },
   ];
   allCustomers.forEach(c => {
     if (c.monetary < 5000) { clvBuckets[0].count++; clvBuckets[0].totalRev += c.monetary; }
@@ -123,7 +139,7 @@ export default function RevenueBehaviour() {
 
   // AOV by segment
   const aovData = segmentData.map(s => ({
-    name: s.segment_name.split(' ').slice(0, 2).join(' '),
+    name: (s.segment_name || '—').split(' ').slice(0, 2).join(' '),
     aov: s.mean_aov,
     medianAov: s.median_aov,
     color: getSegmentStyle(s.segment_name).color,
@@ -135,8 +151,15 @@ export default function RevenueBehaviour() {
     .slice(0, 10);
 
   const totalRevenue = stats.totalRevenue;
-  const avgLTV = totalRevenue / stats.totalCustomers;
-  const topSegmentRevPct = segmentData.find(s => s.segment_name === 'High-Value Loyal')?.pct_of_revenue || 0;
+  const avgLTV = stats.totalCustomers > 0 ? totalRevenue / stats.totalCustomers : null;
+  // Revenue anchor is derived from the data, not a hardcoded segment name.
+  const topSegment = segmentData.reduce(
+    (best, s) => (!best || (s.pct_of_revenue || 0) > (best.pct_of_revenue || 0) ? s : best),
+    null
+  );
+  const topSegmentRevPct = topSegment?.pct_of_revenue ?? '—';
+  // Persona-specific KPI: intentionally tied to the At-Risk Dormant label.
+  const atRiskProfile = segmentData.find(s => s.segment_name === 'At-Risk Dormant');
 
   return (
     <motion.div
@@ -164,7 +187,7 @@ export default function RevenueBehaviour() {
           subtitle="Cumulative cohort lifetime spend"
           icon={DollarSign}
           variant="gold"
-          trend={`${topSegmentRevPct}% from Loyal`}
+          trend={`${topSegmentRevPct}% top segment`}
           trendPositive={true}
           trendLabel="Revenue anchor"
         />
@@ -189,10 +212,10 @@ export default function RevenueBehaviour() {
         <KpiCard
           title="At-Risk Revenue"
           value={formatCurrency(stats.atRiskRevenue)}
-          subtitle={`${stats.atRiskCustomers} dormant accounts`}
+          subtitle={`${stats.atRiskCustomers ?? '—'} dormant accounts`}
           icon={TrendingDown}
           variant="coral"
-          trend="-88.2% Spend Trend"
+          trend={`${atRiskProfile?.mean_spend_trend != null ? atRiskProfile.mean_spend_trend.toFixed(1) : '—'}% Spend Trend`}
           trendPositive={false}
           trendLabel="Urgent"
         />
@@ -214,7 +237,7 @@ export default function RevenueBehaviour() {
               <BarChart data={revenueBySegment} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(161,138,82,0.08)" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} axisLine={{ stroke: 'rgba(161,138,82,0.15)' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} axisLine={{ stroke: 'rgba(161,138,82,0.15)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} axisLine={{ stroke: 'rgba(161,138,82,0.15)' }} tickFormatter={v => `${getCurrencyPrefix()}${(v/1000).toFixed(0)}k`} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   const d = payload[0]?.payload;
@@ -320,7 +343,7 @@ export default function RevenueBehaviour() {
               <BarChart data={aovData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(161,138,82,0.08)" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}`} />
+                <YAxis tick={{ fontSize: 11, fill: '#EAE7DB80' }} tickLine={false} tickFormatter={v => `${getCurrencyPrefix()}${v.toFixed(0)}`} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null;
                   return (
@@ -388,13 +411,13 @@ export default function RevenueBehaviour() {
                     <td className="py-2.5 px-3 font-mono text-[#EAE7DB]/70">{formatCurrency(c.avg_order_value)}</td>
                     <td className="py-2.5 px-3">
                       <span className="font-bold" style={{ color: c.loyalty_score >= 75 ? '#A5B86A' : c.loyalty_score >= 50 ? '#D5B66E' : '#E8785A' }}>
-                        {c.loyalty_score.toFixed(1)}
+                        {c.loyalty_score != null ? c.loyalty_score.toFixed(1) : '—'}
                       </span>
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={`inline-flex items-center gap-1 font-semibold ${c.spend_trend > 0 ? 'text-[#A5B86A]' : 'text-[#E8785A]'}`}>
                         {c.spend_trend > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                        {c.spend_trend !== null ? `${c.spend_trend.toFixed(1)}%` : 'N/A'}
+                        {c.spend_trend != null ? `${c.spend_trend.toFixed(1)}%` : 'N/A'}
                       </span>
                     </td>
                   </tr>
@@ -405,7 +428,7 @@ export default function RevenueBehaviour() {
         </div>
 
         <div className="mt-4 pt-3 border-t border-[#A18A52]/10 text-xs text-[#EAE7DB]/40 italic">
-          Demonstration data — 200 synthetic customer accounts. Revenue figures derived from ML segmentation pipeline output.
+          Demonstration data — {stats.totalCustomers ?? '—'} synthetic customer accounts. Revenue figures derived from ML segmentation pipeline output.
         </div>
       </motion.div>
     </motion.div>

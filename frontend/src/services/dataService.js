@@ -10,6 +10,11 @@ import customersData from '../data/customers.json';
 import segmentProfilesData from '../data/segmentProfiles.json';
 import segmentationMetricsData from '../data/segmentationMetrics.json';
 import modelMetadataData from '../data/modelMetadata.json';
+import { configureCurrency, getCurrencyPrefix } from '../utils/formatters';
+
+// Currency comes from backend metadata. Empty/unspecified stays currency-neutral.
+const metadataCurrency = modelMetadataData?.scoring_config?.currency;
+configureCurrency(typeof metadataCurrency === 'string' ? metadataCurrency : '');
 
 // In case an external backend is attached in future:
 const _API_BASE_URL = import.meta.env.VITE_API_URL || null;
@@ -30,11 +35,15 @@ class DataService {
     const totalOrders = customersData.reduce((acc, curr) => acc + (curr.frequency || 0), 0);
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    // High value loyal segment stats
-    const loyalSegment = segmentProfilesData.find(s => s.segment_name === 'High-Value Loyal') || {};
+    // Derived from actual revenue data so `topSegment` stays correct if a
+    // different segment becomes the revenue anchor after a pipeline refresh.
+    const topSegment = segmentProfilesData.reduce(
+      (best, s) => (!best || (s.total_revenue || 0) > (best.total_revenue || 0) ? s : best),
+      null
+    );
+    // Kept as a name-based lookup because "at-risk revenue / accounts" is a
+    // specific persona KPI, not a generic derivation. Missing data stays null.
     const dormantSegment = segmentProfilesData.find(s => s.segment_name === 'At-Risk Dormant') || {};
-    const offerSegment = segmentProfilesData.find(s => s.segment_name === 'Offer-Sensitive') || {};
-    const occasionalSegment = segmentProfilesData.find(s => s.segment_name === 'Occasional Buyer') || {};
 
     return {
       totalCustomers,
@@ -43,18 +52,18 @@ class DataService {
       totalOrders,
       avgOrderValue,
       segmentsSummary: segmentProfilesData,
-      topSegment: loyalSegment,
-      atRiskRevenue: dormantSegment.total_revenue || 0,
-      atRiskCustomers: dormantSegment.customer_count || 0,
-      offerRevenue: offerSegment.total_revenue || 0,
-      offerCustomers: offerSegment.customer_count || 0,
-      occasionalCustomers: occasionalSegment.customer_count || 0,
+      topSegment: topSegment || {},
+      atRiskRevenue: dormantSegment.total_revenue ?? null,
+      atRiskCustomers: dormantSegment.customer_count ?? null,
       modelManifest: {
-        candidateSet: modelMetadataData.candidate_set || 'Candidate 1 (Classic RFM-P)',
-        clusters: modelMetadataData.n_clusters || 4,
+        candidateSet: modelMetadataData.candidate_set ?? null,
+        clusters: modelMetadataData.n_clusters ?? null,
         features: modelMetadataData.feature_names || [],
-        selectedSilhouette: 0.5814,
-        stabilityAri: 1.0,
+        // Read from evaluation_metrics so values update automatically when the ML pipeline reruns.
+        // stability_ari_mean is the cross-seed K-Means stability ARI, which is
+        // DISTINCT from post-hoc external persona validation ARI (not exported).
+        selectedSilhouette: modelMetadataData.evaluation_metrics?.silhouette_score ?? null,
+        stabilityAri: modelMetadataData.evaluation_metrics?.stability_ari_mean ?? null,
       },
     };
   }
@@ -207,25 +216,24 @@ class DataService {
   }
 
   /**
-   * Retrieve clustering evaluation grid metrics (28 candidate configurations)
+   * Retrieve clustering evaluation grid metrics (all candidate configurations)
    */
   async getSegmentationMetrics() {
     return {
       grid: segmentationMetricsData,
-      candidateSets: [
-        'Candidate 1 (Classic RFM-P)',
-        'Candidate 2 (Decoupled Cadence/Basket)',
-        'Candidate 3 (Spend and Basket)',
-        'Candidate 4 (Temporal Extended)',
-      ],
+      // Derived from the evaluation grid so no candidate names are hardcoded.
+      candidateSets: [...new Set(segmentationMetricsData.map((m) => m.candidate_set))],
       champion: {
-        candidateSet: 'Candidate 1 (Classic RFM-P)',
-        k: 4,
-        features: 'recency_days, log_frequency, log_monetary, offer_dependency',
-        silhouetteScore: 0.5814,
-        daviesBouldin: 0.6503,
-        calinskiHarabasz: 281.92,
-        stabilityAri: 1.0,
+        // All fields read from modelMetadata.json evaluation_metrics so the champion panel
+        // updates automatically whenever the ML pipeline selects a new configuration.
+        candidateSet: modelMetadataData.evaluation_metrics?.selected_candidate_set ?? null,
+        k: modelMetadataData.evaluation_metrics?.selected_k ?? null,
+        features: modelMetadataData.evaluation_metrics?.features ?? null,
+        silhouetteScore: modelMetadataData.evaluation_metrics?.silhouette_score ?? null,
+        daviesBouldin: modelMetadataData.evaluation_metrics?.davies_bouldin_index ?? null,
+        calinskiHarabasz: modelMetadataData.evaluation_metrics?.calinski_harabasz_score ?? null,
+        // stabilityAri = cross-seed K-Means stability mean ARI (NOT persona validation ARI)
+        stabilityAri: modelMetadataData.evaluation_metrics?.stability_ari_mean ?? null,
       },
     };
   }
@@ -257,13 +265,14 @@ class DataService {
       { name: '36+ orders', count: 0 },
     ];
 
-    // Binned Monetary Spend
+    // Binned Monetary Spend (labels follow the configured currency, if any)
+    const moneyPrefix = getCurrencyPrefix();
     const monetaryBins = [
-      { name: '< $5k', count: 0, revenue: 0 },
-      { name: '$5k - $15k', count: 0, revenue: 0 },
-      { name: '$15k - $30k', count: 0, revenue: 0 },
-      { name: '$30k - $50k', count: 0, revenue: 0 },
-      { name: '> $50k', count: 0, revenue: 0 },
+      { name: `< ${moneyPrefix}5k`, count: 0, revenue: 0 },
+      { name: `${moneyPrefix}5k - ${moneyPrefix}15k`, count: 0, revenue: 0 },
+      { name: `${moneyPrefix}15k - ${moneyPrefix}30k`, count: 0, revenue: 0 },
+      { name: `${moneyPrefix}30k - ${moneyPrefix}50k`, count: 0, revenue: 0 },
+      { name: `> ${moneyPrefix}50k`, count: 0, revenue: 0 },
     ];
 
     customersData.forEach(c => {

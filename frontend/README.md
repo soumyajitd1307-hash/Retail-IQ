@@ -29,7 +29,7 @@ Run the local Vite development server with Hot Module Replacement (HMR):
 ```bash
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5180/Retail-IQ/](http://localhost:5180/Retail-IQ/) in your browser. The dev server uses port **5180** with `strictPort: true`, and Vite is configured with `base: '/Retail-IQ/'` (matching the GitHub Pages deployment path).
 
 ### Production Build & Preview
 To create an optimized production build:
@@ -54,29 +54,25 @@ npm run lint
 The dashboard consists of four primary analytical views:
 
 ### 1. Executive Dashboard (`/`)
-- **Executive KPI Cards:** Total Customers (200 accounts), Total Revenue ($4,137,071.75), Average Customer Value ($20,685.36), and At-Risk Revenue ($852,261.62).
+- **Executive KPI Cards:** Total customers, total revenue, average customer value and at-risk revenue — all derived from the committed backend JSON.
 - **Segment Distribution (Donut Chart):** Customer count vs. total turnover share with center metrics.
-- **Pareto Revenue vs. Volume Analysis:** Side-by-side comparison illustrating that High-Value Loyal accounts (25% of cohort) generate 59.7% of total revenue.
-- **Segment Snapshot Cards:** Quick-summary cards for all 4 segments with direct links to exploration.
+- **Pareto Revenue vs. Volume Analysis:** Side-by-side comparison of each segment's revenue share against its customer share.
+- **Segment Snapshot Cards:** One summary card per backend segment, with direct links to exploration.
 
 ### 2. Customer Segmentation (`/segmentation`)
-- **4 Behavioral Personas:**
-  - **High-Value Loyal** (Cluster 0, 50 customers, 59.7% revenue)
-  - **Offer-Sensitive** (Cluster 3, 49 customers, 14.5% revenue)
-  - **At-Risk Dormant** (Cluster 2, 40 customers, 20.6% revenue)
-  - **Occasional Buyer** (Cluster 1, 61 customers, 5.2% revenue)
-- **Strategic Playbooks:** Prescriptive marketing & retention strategies verbatim from `data/segment_profiles.csv`.
+- **Behavioral Personas:** Segment tabs, counts and revenue shares are generated from `segmentProfiles.json`; segment colours fall back safely for newly introduced names.
+- **Strategic Playbooks:** Prescriptive marketing & retention strategies verbatim from the exported segment profiles.
 - **Centroid & Distribution Verification:** Statistical comparison of Mean vs. Median for Recency, Frequency, Monetary spend, AOV, and Offer Dependency.
-- **Normalized Radar Comparison:** 6-axis behavioral radar chart comparing all 4 segments simultaneously.
-- **Customer Cluster Scatter Plot:** Recency vs. Monetary spend across all 200 accounts.
-- **ML Evaluation Grid:** 28-configuration grid evaluation from `data/segmentation_metrics.csv` detailing why Candidate 1 (Classic RFM-P) at $K=4$ was selected (Silhouette 0.5814, Davies-Bouldin 0.6503, Stability ARI 1.00).
+- **Normalized Radar Comparison:** Six-axis behavioral radar chart generated from the live segment profiles.
+- **Customer Cluster Scatter Plot:** Recency vs. Monetary spend across all customer accounts.
+- **ML Evaluation Grid:** Full candidate × K grid from `segmentationMetrics.json`; the champion configuration and its metrics come from `modelMetadata.json → evaluation_metrics`.
 
 ### 3. Customer Explorer (`/explorer`)
-- **Granular Customer Directory:** Interactive table of all 200 customer accounts.
+- **Granular Customer Directory:** Interactive table of all customer accounts in `customers.json`.
 - **Search & Multi-Filter:**
   - Real-time search across Customer ID, segment name, and recommendation text.
   - Segment filter dropdown.
-  - Spend tier filter (High >$30k, Mid $10k-$30k, Low <$10k).
+  - Spend tier filter (High, Mid, Low thresholds in generic currency units; the displayed prefix follows backend currency metadata).
   - Recency cadence filter (Active $\le$30d, Warm 31-60d, Cooling 61-90d, Dormant >90d).
 - **Multi-Column Sorting:** Sort ascending or descending by Customer ID, Loyalty Score, Total Spend, Order Frequency, Recency, or Offer Sensitivity.
 - **Pagination & Page Size:** Configurable 10, 25, or 50 records per page.
@@ -118,7 +114,18 @@ frontend/
 └── vite.config.js
 ```
 
-### Backend Integration
-To integrate a live backend in the future:
-1. Set the `VITE_API_URL` environment variable (e.g. `VITE_API_URL=http://localhost:8000/api` in `.env`).
-2. Update `src/services/dataService.js` methods to fetch from the API endpoints instead of the local static dataset. The UI components will continue to work without modification.
+### Backend Integration (current)
+This dashboard is **fully static**: it reads only the committed JSON artifacts in `src/data/`. No API server or backend process is needed to run `npm run dev`, `npm run build` or `npm run preview`.
+
+From the repository root, `python run_segmentation.py` runs the ML pipeline and then calls `scripts/export_frontend_data.py`, which validates schemas/reconciliation/champion metadata and atomically refreshes:
+
+- `customers.json` ← `data/segmented_customers.csv`
+- `segmentProfiles.json` ← `data/segment_profiles.csv`
+- `segmentationMetrics.json` ← `data/segmentation_metrics.csv`
+- `modelMetadata.json` ← `models/model_metadata.json`
+
+After a successful pipeline run, review the regenerated JSON in Git and commit it together with the related code changes. Static deployments also need `npm run build` so the updated JSON is included in the bundle.
+
+`VITE_API_URL` is an unused placeholder for a possible future remote backend; setting it does not change current behaviour. `dataService.js` is the only module that touches backend data, so a future API switch would not require UI component changes.
+
+Currency formatting is configured once from `modelMetadata.json → scoring_config.currency`. When that value is empty or missing, amounts render without a currency symbol (no USD assumption); numeric formatting is unchanged.

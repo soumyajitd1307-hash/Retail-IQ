@@ -1,31 +1,47 @@
 /**
  * Utility formatters for Retail IQ Analytics
  * Adheres to generic currency configuration and standard number presentation.
+ *
+ * Currency is configured once from backend model metadata (scoring_config.currency).
+ * An empty/unspecified value means currency-neutral: numbers are formatted without
+ * a currency symbol rather than falsely assuming USD.
  */
 
-export function formatCurrency(value, currency = '$') {
+let activeCurrency = '';
+
+export function configureCurrency(currency) {
+  activeCurrency = typeof currency === 'string' ? currency : '';
+}
+
+export function getCurrencyPrefix() {
+  return activeCurrency;
+}
+
+export function formatCurrency(value, currency = activeCurrency) {
   if (value === null || value === undefined || isNaN(value)) {
     return 'N/A';
   }
   const num = Number(value);
-  return `${currency}${num.toLocaleString('en-US', {
+  const prefix = typeof currency === 'string' ? currency : '';
+  return `${prefix}${num.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
-export function formatCompactCurrency(value, currency = '$') {
+export function formatCompactCurrency(value, currency = activeCurrency) {
   if (value === null || value === undefined || isNaN(value)) {
     return 'N/A';
   }
   const num = Number(value);
+  const prefix = typeof currency === 'string' ? currency : '';
   if (num >= 1000000) {
-    return `${currency}${(num / 1000000).toFixed(2)}M`;
+    return `${prefix}${(num / 1000000).toFixed(2)}M`;
   }
   if (num >= 1000) {
-    return `${currency}${(num / 1000).toFixed(1)}k`;
+    return `${prefix}${(num / 1000).toFixed(1)}k`;
   }
-  return `${currency}${num.toFixed(0)}`;
+  return `${prefix}${num.toFixed(0)}`;
 }
 
 export function formatNumber(value, decimals = 0) {

@@ -16,7 +16,12 @@ Executes the complete end-to-end Role C analytical pipeline from the repository 
      - 'data/segmented_customers.csv'
      - 'data/segment_profiles.csv'
  10. Executes post-hoc external persona validation (ARI / NMI diagnostics).
- 11. Produces comprehensive validation documentation.
+ 11. Reconciles customer counts and monetary totals to the exact cent.
+ 12. Automatically synchronizes backend deliverables to frontend JSON files:
+     - 'frontend/src/data/customers.json'
+     - 'frontend/src/data/segmentProfiles.json'
+     - 'frontend/src/data/segmentationMetrics.json'
+     - 'frontend/src/data/modelMetadata.json'
 """
 
 import os
@@ -162,6 +167,8 @@ def run_pipeline(
     transactions_path: str = "data/transactions_clean.csv",
     random_state: int = 42,
     currency: str = DEFAULT_CURRENCY,
+    export_frontend: bool = True,
+    frontend_data_dir: str = "frontend/src/data",
 ) -> Dict[str, Any]:
     """
     Execute full Role C customer segmentation workflow.
@@ -173,6 +180,9 @@ def run_pipeline(
         currency: Currency symbol prefix for recommendation monetary wording.
                   Defaults to ``""`` (currency-neutral; no fiat denomination
                   is assumed). Pass a symbol only when confirmed.
+        export_frontend: Whether to automatically synchronize backend deliverables
+                         to frontend JSON assets (default True).
+        frontend_data_dir: Target path for frontend JSON files (default 'frontend/src/data').
 
     Returns:
         Dict[str, Any]: Execution metadata and summary results.
@@ -340,6 +350,17 @@ def run_pipeline(
     profile_cust = reconciliation["profile_customer_sum"]
     profile_rev = reconciliation["profile_revenue"]
 
+    # Step 8: Automated Backend-to-Frontend Data Synchronization
+    frontend_sync = None
+    if export_frontend:
+        logger.info("[Step 8/8] Synchronizing latest backend deliverables to frontend JSON data...")
+        from scripts.export_frontend_data import export_backend_to_frontend
+        frontend_sync = export_backend_to_frontend(
+            data_dir=DATA_DIR,
+            models_dir=MODELS_DIR,
+            frontend_dir=frontend_data_dir,
+        )
+
     logger.info("=================================================================")
     logger.info("   ROLE C PIPELINE COMPLETED SUCCESSFULLY!")
     logger.info(f"   • Selected Feature Set: {best_candidate}")
@@ -349,6 +370,8 @@ def run_pipeline(
     logger.info(f"   • Stability Mean ARI: {rationale['stability_ari_mean']:.4f}")
     logger.info(f"   • Post-Hoc Persona ARI: {persona_validation_results['adjusted_rand_index']:.4f}")
     logger.info(f"   • Post-Hoc Persona NMI: {persona_validation_results['normalized_mutual_info']:.4f}")
+    if frontend_sync:
+        logger.info("   • Frontend Synchronization: COMPLETE (4 JSON assets synced)")
     logger.info("=================================================================")
 
     return {
@@ -363,6 +386,7 @@ def run_pipeline(
         "metrics_output": metrics_csv_path,
         "reconciliation": reconciliation,
         "currency": currency,
+        "frontend_sync": frontend_sync,
     }
 
 

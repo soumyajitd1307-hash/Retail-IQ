@@ -1,23 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import ShatterTransition from '../common/ShatterTransition';
 import RadiantWaveBackground from '../common/RadiantWaveBackground';
+import dataService from '../../services/dataService';
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [shatter, setShatter] = useState({ active: false, targetUrl: '' });
-  const location = useLocation();
+  const [overview, setOverview] = useState(null);
 
   useEffect(() => {
-    const handleShatter = (e) => {
-      const targetUrl = e.detail?.targetUrl || '/explorer';
-      setShatter({ active: true, targetUrl });
-    };
-
-    window.addEventListener('retailiq-shatter-navigate', handleShatter);
-    return () => window.removeEventListener('retailiq-shatter-navigate', handleShatter);
+    dataService.getOverviewStats().then(setOverview).catch(() => setOverview(null));
   }, []);
 
   return (
@@ -25,18 +18,10 @@ export default function Layout() {
       {/* Global Radiant Green Wave Background */}
       <RadiantWaveBackground />
 
-      {/* Shatter Transition Overlay (when moving between pages) */}
-      <ShatterTransition
-        isShattering={shatter.active}
-        targetUrl={shatter.targetUrl}
-        onComplete={() => setShatter({ active: false, targetUrl: '' })}
-      />
-
       {/* Luxury Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        currentPath={location.pathname}
       />
 
       {/* Main Content Shell */}
@@ -66,9 +51,9 @@ export default function Layout() {
               <span className="w-1.5 h-1.5 rounded-full bg-[#E8785A] animate-pulse" />
               High Priority Alert Active
             </span>
-            <span className="text-[#EAE7DB]/60">Model: <strong className="text-[#EAE7DB]">Candidate 1 (Classic RFM-P)</strong></span>
+            <span className="text-[#EAE7DB]/60">Model: <strong className="text-[#EAE7DB]">{overview?.modelManifest?.candidateSet || '—'}</strong></span>
             <span className="text-[#A18A52]/60">•</span>
-            <span className="text-[#EAE7DB]/60">Cohort: <strong className="text-[#D5B66E]">200 Accounts</strong></span>
+            <span className="text-[#EAE7DB]/60">Cohort: <strong className="text-[#D5B66E]">{overview?.totalCustomers ?? '—'} Accounts</strong></span>
           </div>
         </footer>
       </div>

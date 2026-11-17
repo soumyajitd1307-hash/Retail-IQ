@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PieChart as PieChartIcon,
@@ -39,11 +39,22 @@ import {
   formatCurrency,
   formatCompactCurrency,
   formatNumber,
+  getCurrencyPrefix,
 } from '../utils/formatters';
 import { getSegmentStyle } from '../utils/theme';
 
+// Cosmetic series colours for the dynamic radar chart (preserves the existing palette).
+const RADAR_SERIES_COLORS = {
+  'High-Value Loyal': '#059669',
+  'Offer-Sensitive': '#D97706',
+  'At-Risk Dormant': '#E11D48',
+  'Occasional Buyer': '#0D9488',
+};
+const RADAR_FALLBACK_COLORS = ['#059669', '#D97706', '#E11D48', '#0D9488'];
+
 export default function Segmentation() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialSegment = searchParams.get('segment') || 'High-Value Loyal';
 
   const [loading, setLoading] = useState(true);
@@ -85,15 +96,6 @@ export default function Segmentation() {
     setSearchParams({ segment: name });
   };
 
-  const handleNavigateToExplorer = (targetSegment) => {
-    const targetUrl = targetSegment
-      ? `/explorer?segment=${encodeURIComponent(targetSegment)}`
-      : '/explorer';
-    window.dispatchEvent(
-      new CustomEvent('retailiq-shatter-navigate', { detail: { targetUrl } })
-    );
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -105,107 +107,161 @@ export default function Segmentation() {
     );
   }
 
+  // Empty-data state: never access currentProfile when no backend profiles were loaded.
+  if (!profiles.length) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-xs font-semibold text-[#EAE7DB]/70">
+            No segment profiles are available from the backend data export.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const currentProfile = profiles.find((p) => p.segment_name === selectedSegment) || profiles[0];
   const currentStyle = getSegmentStyle(selectedSegment);
   const isHighValue = currentProfile.segment_name === 'High-Value Loyal';
+  const currencyPrefix = getCurrencyPrefix();
 
-  // Radar chart data for comparing normalized dimensions across all 4 segments
-  const radarData = [
-    {
-      metric: 'Loyalty Score',
-      'High-Value Loyal': 91,
-      'Offer-Sensitive': 66,
-      'At-Risk Dormant': 61,
-      'Occasional Buyer': 34,
-    },
-    {
-      metric: 'Monetary ($)',
-      'High-Value Loyal': 98,
-      'Offer-Sensitive': 25,
-      'At-Risk Dormant': 43,
-      'Occasional Buyer': 7,
-    },
-    {
-      metric: 'Frequency (Orders)',
-      'High-Value Loyal': 85,
-      'Offer-Sensitive': 43,
-      'At-Risk Dormant': 51,
-      'Occasional Buyer': 13,
-    },
-    {
-      metric: 'Recency (Freshness)',
-      'High-Value Loyal': 95,
-      'Offer-Sensitive': 75,
-      'At-Risk Dormant': 15,
-      'Occasional Buyer': 35,
-    },
-    {
-      metric: 'Margin Integrity',
-      'High-Value Loyal': 95, // 100 - 5% offer dependency
-      'Offer-Sensitive': 21,
-      'At-Risk Dormant': 72,
-      'Occasional Buyer': 67,
-    },
-    {
-      metric: 'Spend Trajectory',
-      'High-Value Loyal': 88,
-      'Offer-Sensitive': 55,
-      'At-Risk Dormant': 12,
-      'Occasional Buyer': 30,
-    },
-  ];
+  // ─── Cohort-level aggregates (computed once from live customer data) ────────
+  const cohortAvgMonetary   = allCustomers.length
+    ? allCustomers.reduce((s, c) => s + (c.monetary || 0), 0) / allCustomers.length
+    : 0;
+  const cohortAvgFrequency  = allCustomers.length
+    ? allCustomers.reduce((s, c) => s + (c.frequency || 0), 0) / allCustomers.length
+    : 0;
+  const cohortAvgRecency    = allCustomers.length
+    ? allCustomers.reduce((s, c) => s + (c.recency_days || 0), 0) / allCustomers.length
+    : 0;
 
-  // Benchmark index metrics specifically showcasing High-Value Loyal dominance
+  // ─── Dynamic radar chart ──────────────────────────────────────────────────
+  // Each axis is normalized 0-100 so segments can be visually compared.
+  // Normalization reference: max value across all segments for each axis.
+  //   Loyalty Score      → mean_loyalty_score   (scale 0-100 natively)
+  //   Monetary ($)       → mean_monetary        (normalized to [0,100])
+  //   Frequency (Orders) → mean_frequency       (normalized to [0,100])
+  //   Recency (Freshness)→ INVERTED recency: 100 − norm(mean_recency)
+  //                        (lower recency_days = fresher = higher score)
+  //   Margin Integrity   → (1 − mean_offer_dependency) × 100
+  //   Spend Trajectory   → normalized mean_spend_trend shifted to [0,100]
+  const buildRadarData = (segs) => {
+    if (!segs || segs.length === 0) return [];
+    const maxMonetary  = Math.max(...segs.map(s => s.mean_monetary  || 0)) || 1;
+    const maxFrequency = Math.max(...segs.map(s => s.mean_frequency || 0)) || 1;
+    const maxRecency   = Math.max(...segs.map(s => s.mean_recency   || 0)) || 1;
+    // spend_trend can be negative; shift to positive range before normalizing
+    const trends = segs.map(s => s.mean_spend_trend ?? 0);
+    const minTrend = Math.min(...trends);
+    const shiftedTrends = trends.map(t => t - minTrend);
+    const maxShifted = Math.max(...shiftedTrends) || 1;
+
+    return [
+      {
+        metric: 'Loyalty Score',
+        ...Object.fromEntries(segs.map(s => [s.segment_name, Math.round(s.mean_loyalty_score ?? 0)])),
+      },
+      {
+        metric: currencyPrefix ? `Monetary (${currencyPrefix})` : 'Monetary',
+        ...Object.fromEntries(segs.map(s => [s.segment_name, Math.round(((s.mean_monetary || 0) / maxMonetary) * 100)])),
+      },
+      {
+        metric: 'Frequency (Orders)',
+        ...Object.fromEntries(segs.map(s => [s.segment_name, Math.round(((s.mean_frequency || 0) / maxFrequency) * 100)])),
+      },
+      {
+        metric: 'Recency (Freshness)',
+        // Invert: low recency_days = very recent = good (score near 100)
+        ...Object.fromEntries(segs.map(s => [s.segment_name, Math.round((1 - (s.mean_recency || 0) / maxRecency) * 100)])),
+      },
+      {
+        metric: 'Margin Integrity',
+        ...Object.fromEntries(segs.map(s => [s.segment_name, Math.round((1 - (s.mean_offer_dependency ?? 0)) * 100)])),
+      },
+      {
+        metric: 'Spend Trajectory',
+        ...Object.fromEntries(segs.map((s, i) => [s.segment_name, Math.round((shiftedTrends[i] / maxShifted) * 100)])),
+      },
+    ];
+  };
+
+  const radarData = buildRadarData(profiles);
+
+  // ─── Benchmark metrics for the selected segment ──────────────────────────
+  // Baselines (cohort averages) are computed live from customers.json.
+  // Index strings and score bars reflect the CURRENT segment vs the cohort mean.
+  const offerSegProfile = profiles.find(s => s.segment_name === 'Offer-Sensitive');
+  const cohortMonetaryStr  = formatCompactCurrency(cohortAvgMonetary);
+  const cohortFreqStr      = cohortAvgFrequency.toFixed(1);
+  const cohortRecencyStr   = cohortAvgRecency.toFixed(1);
+  const offerDepPct        = offerSegProfile?.mean_offer_dependency != null
+    ? (offerSegProfile.mean_offer_dependency * 100).toFixed(0)
+    : '—';
+  // Revenue multiplier vs cohort mean spend
+  const monetaryMultiplier = cohortAvgMonetary > 0
+    ? (currentProfile.mean_monetary / cohortAvgMonetary).toFixed(2)
+    : '—';
+  const monetaryIndexPct   = cohortAvgMonetary > 0
+    ? Math.round(((currentProfile.mean_monetary - cohortAvgMonetary) / cohortAvgMonetary) * 100)
+    : 0;
+  const freqIndexPct       = cohortAvgFrequency > 0
+    ? Math.round(((currentProfile.mean_frequency - cohortAvgFrequency) / cohortAvgFrequency) * 100)
+    : 0;
+  const recencyIndexPct    = cohortAvgRecency > 0
+    ? Math.round(((cohortAvgRecency - currentProfile.mean_recency) / cohortAvgRecency) * 100)
+    : 0;
+
   const highValueMetrics = [
     {
       dimension: 'Revenue Dominance',
-      rawVal: '$2.47M Total Spend',
-      score: 98,
-      index: '59.7% of Turnover',
-      baseline: '2.39x Multiplier',
+      rawVal: formatCompactCurrency(currentProfile.total_revenue),
+      score: Math.min(100, Math.round(currentProfile.pct_of_revenue ?? 0) * 1.5),
+      index: `${currentProfile.pct_of_revenue ?? '—'}% of Turnover`,
+      baseline: `${monetaryMultiplier}x Multiplier`,
       color: '#059669',
       grad: 'from-[#059669] to-[#10B981]',
-      desc: 'Anchors majority of enterprise company turnover with zero margin degradation',
+      desc: 'Share of enterprise cohort turnover anchored in this segment',
     },
     {
       dimension: 'Monetary Power',
       rawVal: formatCurrency(currentProfile.mean_monetary),
-      score: 94,
-      index: '239% vs Cohort Mean',
-      baseline: 'Cohort: $20.7k',
+      score: Math.min(100, Math.max(0, 50 + monetaryIndexPct / 4)),
+      index: `${monetaryIndexPct >= 0 ? '+' : ''}${monetaryIndexPct}% vs Cohort Mean`,
+      baseline: `Cohort: ${cohortMonetaryStr}`,
       color: '#0D9488',
       grad: 'from-[#0D9488] to-[#14B8A6]',
-      desc: 'Highest cumulative average customer spend across all evaluated clusters',
+      desc: 'Cumulative average customer spend compared to the full cohort baseline',
     },
     {
       dimension: 'Purchase Frequency',
-      rawVal: `${currentProfile.mean_frequency} Orders`,
-      score: 85,
-      index: '203% vs Cohort Mean',
-      baseline: 'Cohort: 18.3 Orders',
+      rawVal: `${currentProfile.mean_frequency.toFixed(1)} Orders`,
+      score: Math.min(100, Math.max(0, 50 + freqIndexPct / 4)),
+      index: `${freqIndexPct >= 0 ? '+' : ''}${freqIndexPct}% vs Cohort Mean`,
+      baseline: `Cohort: ${cohortFreqStr} Orders`,
       color: '#D97706',
       grad: 'from-[#D97706] to-[#F59E0B]',
-      desc: 'Sustained buying cadence with predictable repeat transactions',
+      desc: 'Buying cadence compared to cohort average transaction frequency',
     },
     {
       dimension: 'Recency Freshness',
-      rawVal: `${currentProfile.mean_recency} Days Ago`,
-      score: 95,
-      index: '341% Fresher Cadence',
-      baseline: 'Cohort: 48.4 Days',
+      rawVal: `${currentProfile.mean_recency.toFixed(1)} Days Ago`,
+      score: Math.min(100, Math.max(0, 50 + recencyIndexPct / 2)),
+      index: `${recencyIndexPct >= 0 ? '+' : ''}${recencyIndexPct}% Fresher than Mean`,
+      baseline: `Cohort: ${cohortRecencyStr} Days`,
       color: '#B99A55',
       grad: 'from-[#8A723D] to-[#D5B66E]',
-      desc: 'Consistently active buyers with minimal days elapsed since last checkout',
+      desc: 'Days since last purchase — lower is better (more recent activity)',
     },
     {
       dimension: 'Full-Price Margin Integrity',
       rawVal: `${((1 - currentProfile.mean_offer_dependency) * 100).toFixed(1)}% Full Price`,
-      score: 95,
-      index: 'Only 4.9% Offer Reliance',
-      baseline: 'Offer Segment: 79%',
+      score: Math.round((1 - currentProfile.mean_offer_dependency) * 100),
+      index: `Only ${(currentProfile.mean_offer_dependency * 100).toFixed(1)}% Offer Reliance`,
+      baseline: `Offer Segment: ${offerDepPct}%`,
       color: '#A5B86A',
       grad: 'from-[#81966B] to-[#A5B86A]',
-      desc: 'Full-price customer discipline guarding gross margin profitability',
+      desc: 'Full-price purchase discipline — protects gross margin profitability',
     },
   ];
 
@@ -219,10 +275,14 @@ export default function Segmentation() {
     color: getSegmentStyle(c.segment_name).color,
   }));
 
-  // Group metrics by candidate set for evaluation tab
-  const candidate1Metrics = metricsData?.grid?.filter(
-    (m) => m.candidate_set === 'Candidate 1 (Classic RFM-P)'
+  // Group metrics for the currently selected champion candidate (evaluation tab).
+  const championMetrics = metricsData?.grid?.filter(
+    (m) => m.candidate_set === metricsData?.champion?.candidateSet
   ) || [];
+
+  // Radar separation labels: neutral when backend values are absent.
+  const hvlLoyalty = profiles.find((p) => p.segment_name === 'High-Value Loyal')?.mean_loyalty_score;
+  const occasionalLoyalty = profiles.find((p) => p.segment_name === 'Occasional Buyer')?.mean_loyalty_score;
 
   return (
     <div className="space-y-6">
@@ -233,7 +293,8 @@ export default function Segmentation() {
             Customer <span className="text-gradient-gold">Behavioral Segmentation</span>
           </h2>
           <p className="text-xs text-[#EAE7DB]/60 mt-0.5">
-            Unsupervised behavioral clustering on 200 customer profiles using Candidate 1 (Classic RFM-P).
+            Unsupervised behavioral clustering on {allCustomers.length || '—'} customer profiles using{' '}
+            {metricsData?.champion?.candidateSet || '—'}.
           </p>
         </div>
 
@@ -350,11 +411,11 @@ export default function Segmentation() {
                 </p>
               </div>
 
-              {/* Action Button: Shatter Transition to Customer Explorer */}
+              {/* Action Button: Customer Explorer */}
               <div className="flex items-center gap-3 shrink-0">
                 <button
-                  onClick={() => handleNavigateToExplorer(currentProfile.segment_name)}
-                  title="Explore accounts with smooth paper-shatter transition"
+                  onClick={() => navigate(`/explorer?segment=${encodeURIComponent(currentProfile.segment_name)}`)}
+                  title="Explore accounts in Customer Explorer"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl btn-gold text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
                   <span>Explore {currentProfile.customer_count} Accounts</span>
@@ -401,7 +462,7 @@ export default function Segmentation() {
                   <div className="mt-2 pt-2 border-t border-[#E8DFCA] flex justify-between text-xs text-[#303629]">
                     <span>Cohort Share:</span>
                     <strong className="text-[#047857] font-mono font-bold">
-                      {isHighValue ? '59.7% of all sales' : `${currentProfile.pct_of_revenue}%`}
+                      {isHighValue ? `${currentProfile.pct_of_revenue}% of all sales` : `${currentProfile.pct_of_revenue}%`}
                     </strong>
                   </div>
                 </div>
@@ -529,7 +590,7 @@ export default function Segmentation() {
                     Composite RFM Loyalty Score: <strong className="text-[#047857]">{currentProfile.mean_loyalty_score.toFixed(1)} / 100</strong>
                   </span>
                   <span className="text-[11px] text-[#8A6F27] font-bold">
-                    ★ Dominant Cohort Spend Multiplier: 2.39x average
+                    ★ Dominant Cohort Spend Multiplier: {monetaryMultiplier !== '—' ? `${monetaryMultiplier}x average` : '—'}
                   </span>
                 </div>
               </div>
@@ -548,7 +609,7 @@ export default function Segmentation() {
                     Normalized Dimension Comparison
                   </h3>
                   <p className="text-xs text-[#047857] font-extrabold mt-0.5">
-                    ★ RADAR SEPARATION: High-Value Loyal (91 Loyalty) vs Occasional Buyer (34 Loyalty)
+                    ★ RADAR SEPARATION: High-Value Loyal ({hvlLoyalty != null ? Math.round(hvlLoyalty) : '—'} Loyalty) vs Occasional Buyer ({occasionalLoyalty != null ? Math.round(occasionalLoyalty) : '—'} Loyalty)
                   </p>
                 </div>
               </div>
@@ -562,38 +623,21 @@ export default function Segmentation() {
                       tick={{ fill: '#1A1D16', fontSize: 11, fontWeight: 700 }}
                     />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10, fill: '#303629' }} />
-                    <Radar
-                      name="High-Value Loyal"
-                      dataKey="High-Value Loyal"
-                      stroke="#059669"
-                      fill="#059669"
-                      fillOpacity={0.35}
-                      strokeWidth={2}
-                    />
-                    <Radar
-                      name="Offer-Sensitive"
-                      dataKey="Offer-Sensitive"
-                      stroke="#D97706"
-                      fill="#D97706"
-                      fillOpacity={0.25}
-                      strokeWidth={1.5}
-                    />
-                    <Radar
-                      name="At-Risk Dormant"
-                      dataKey="At-Risk Dormant"
-                      stroke="#E11D48"
-                      fill="#E11D48"
-                      fillOpacity={0.25}
-                      strokeWidth={1.5}
-                    />
-                    <Radar
-                      name="Occasional Buyer"
-                      dataKey="Occasional Buyer"
-                      stroke="#0D9488"
-                      fill="#0D9488"
-                      fillOpacity={0.25}
-                      strokeWidth={1.5}
-                    />
+                    {profiles.map((seg, idx) => {
+                      const color = RADAR_SERIES_COLORS[seg.segment_name]
+                        || RADAR_FALLBACK_COLORS[idx % RADAR_FALLBACK_COLORS.length];
+                      return (
+                        <Radar
+                          key={seg.segment_name}
+                          name={seg.segment_name}
+                          dataKey={seg.segment_name}
+                          stroke={color}
+                          fill={color}
+                          fillOpacity={idx === 0 ? 0.35 : 0.25}
+                          strokeWidth={idx === 0 ? 2 : 1.5}
+                        />
+                      );
+                    })}
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px', color: '#1A1D16', fontWeight: 'bold' }} />
                     <Tooltip
                       content={({ active, payload, label }) => {
@@ -648,8 +692,8 @@ export default function Segmentation() {
                       type="number"
                       dataKey="y"
                       name="Monetary"
-                      tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
-                      label={{ value: 'Monetary ($)', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#1A1D16', fontWeight: 700 }}
+                      tickFormatter={(val) => `${currencyPrefix}${(val / 1000).toFixed(0)}k`}
+                      label={{ value: currencyPrefix ? `Monetary (${currencyPrefix})` : 'Monetary', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#1A1D16', fontWeight: 700 }}
                       tick={{ fontSize: 11, fill: '#303629', fontWeight: 600 }}
                       axisLine={{ stroke: 'rgba(185, 154, 85, 0.45)' }}
                     />
@@ -703,29 +747,39 @@ export default function Segmentation() {
                   Selected Champion Configuration
                 </div>
                 <h3 className="text-lg font-black text-[#EAE7DB]">
-                  Candidate 1 (Classic RFM-P) at K = 4
+                  {metricsData?.champion?.candidateSet || '—'} at K = {metricsData?.champion?.k ?? '—'}
                 </h3>
                 <p className="text-xs text-[#EAE7DB]/60">
-                  Evaluated across a 28-configuration grid (4 candidate feature matrices × K ∈ [2, 8])
+                  Evaluated across a {metricsData?.grid?.length ?? '—'}-configuration grid ({new Set((metricsData?.grid || []).map((m) => m.candidate_set)).size} candidate feature matrices × K ∈ [2, 8])
                 </p>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div className="p-3 bg-[#1A1D16] rounded-xl border border-[#A18A52]/20">
                   <div className="text-[10px] uppercase font-bold text-[#A18A52]">Silhouette</div>
-                  <div className="text-base font-black text-[#D5B66E]">0.5814</div>
+                  <div className="text-base font-black text-[#D5B66E]">
+                    {metricsData?.champion?.silhouetteScore != null ? Number(metricsData.champion.silhouetteScore).toFixed(4) : '—'}
+                  </div>
                 </div>
                 <div className="p-3 bg-[#1A1D16] rounded-xl border border-[#A18A52]/20">
                   <div className="text-[10px] uppercase font-bold text-[#A18A52]">Davies-Bouldin</div>
-                  <div className="text-base font-black text-[#A5B86A]">0.6503</div>
+                  <div className="text-base font-black text-[#A5B86A]">
+                    {metricsData?.champion?.daviesBouldin != null ? Number(metricsData.champion.daviesBouldin).toFixed(4) : '—'}
+                  </div>
                 </div>
                 <div className="p-3 bg-[#1A1D16] rounded-xl border border-[#A18A52]/20">
                   <div className="text-[10px] uppercase font-bold text-[#A18A52]">Calinski-Harabasz</div>
-                  <div className="text-base font-black text-[#EAE7DB]">281.92</div>
+                  <div className="text-base font-black text-[#EAE7DB]">
+                    {metricsData?.champion?.calinskiHarabasz != null ? Number(metricsData.champion.calinskiHarabasz).toFixed(2) : '—'}
+                  </div>
                 </div>
                 <div className="p-3 bg-[#1A1D16] rounded-xl border border-[#A18A52]/20">
+                  {/* Stability ARI = cross-seed K-Means stability mean ARI.
+                      This is DISTINCT from post-hoc external persona validation ARI. */}
                   <div className="text-[10px] uppercase font-bold text-[#A18A52]">Stability ARI</div>
-                  <div className="text-base font-black text-[#A5B86A]">1.0000</div>
+                  <div className="text-base font-black text-[#A5B86A]">
+                    {metricsData?.champion?.stabilityAri != null ? Number(metricsData.champion.stabilityAri).toFixed(4) : '—'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -733,11 +787,11 @@ export default function Segmentation() {
             {/* Line Chart */}
             <div className="mt-6">
               <h4 className="text-xs font-bold text-[#A18A52] uppercase tracking-wider mb-2">
-                Candidate 1 (Classic RFM-P): Silhouette Score & Davies-Bouldin vs Cluster Count (K)
+                {metricsData?.champion?.candidateSet || '—'}: Silhouette Score & Davies-Bouldin vs Cluster Count (K)
               </h4>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={candidate1Metrics} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                  <LineChart data={championMetrics} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(161, 138, 82, 0.15)" />
                     <XAxis
                       dataKey="k"
@@ -774,7 +828,7 @@ export default function Segmentation() {
             {/* Grid Table */}
             <div className="mt-8">
               <h4 className="text-xs font-bold text-[#A18A52] uppercase tracking-wider mb-3">
-                Full 28-Configuration Evaluation Grid (data/segmentation_metrics.csv)
+                Full {metricsData?.grid?.length ?? '—'}-Configuration Evaluation Grid (data/segmentation_metrics.csv)
               </h4>
               <div className="overflow-x-auto max-h-96 border border-[#A18A52]/20 rounded-xl">
                 <table className="w-full text-left text-xs">
@@ -793,7 +847,8 @@ export default function Segmentation() {
                   <tbody className="divide-y divide-[#A18A52]/10 text-[#EAE7DB]">
                     {metricsData?.grid?.map((row, idx) => {
                       const isChampion =
-                        row.candidate_set === 'Candidate 1 (Classic RFM-P)' && row.k === 4;
+                        row.candidate_set === metricsData?.champion?.candidateSet &&
+                        row.k === metricsData?.champion?.k;
                       return (
                         <tr
                           key={idx}

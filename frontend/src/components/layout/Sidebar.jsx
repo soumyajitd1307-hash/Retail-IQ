@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,8 +10,16 @@ import {
   AlertOctagon,
   Sparkles,
 } from 'lucide-react';
+import dataService from '../../services/dataService';
+import { formatCompactCurrency } from '../../utils/formatters';
 
-export default function Sidebar({ isOpen, onClose, currentPath }) {
+export default function Sidebar({ isOpen, onClose }) {
+  const [sidebarStats, setSidebarStats] = useState(null);
+
+  useEffect(() => {
+    dataService.getOverviewStats().then(setSidebarStats).catch(() => {});
+  }, []);
+
   const navItems = [
     {
       to: '/',
@@ -23,13 +31,17 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
       to: '/segmentation',
       label: 'Customer Segmentation',
       icon: PieChart,
-      badge: '4 Personas',
+      badge: sidebarStats?.segmentsSummary?.length
+        ? `${sidebarStats.segmentsSummary.length} Personas`
+        : '—',
     },
     {
       to: '/explorer',
       label: 'Customer Explorer',
       icon: Users,
-      badge: '200 Cohort',
+      badge: sidebarStats?.totalCustomers
+        ? `${sidebarStats.totalCustomers} Cohort`
+        : '—',
     },
     {
       to: '/rfm',
@@ -45,43 +57,28 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
     },
   ];
 
-  const segmentCounts = [
-    { 
-      name: 'High-Value Loyal', 
-      count: 50, 
-      color: '#A5B86A', 
-      bg: 'bg-[#A5B86A]/15 text-[#A5B86A] border border-[#A5B86A]/30' 
-    },
-    { 
-      name: 'Offer-Sensitive', 
-      count: 49, 
-      color: '#D5B66E', 
-      bg: 'bg-[#D5B66E]/15 text-[#D5B66E] border border-[#D5B66E]/30' 
-    },
-    { 
-      name: 'At-Risk Dormant', 
-      count: 40, 
-      color: '#E8785A', 
-      bg: 'bg-[#E8785A]/20 text-[#FFA085] border border-[#E8785A]/40 font-bold' 
-    },
-    { 
-      name: 'Occasional Buyer', 
-      count: 61, 
-      color: '#81966B', 
-      bg: 'bg-[#81966B]/15 text-[#A2B989] border border-[#81966B]/30' 
-    },
-  ];
+  // Segment colour/style definitions (purely cosmetic — not data)
+  const SEGMENT_STYLES = {
+    'High-Value Loyal':  { color: '#A5B86A', bg: 'bg-[#A5B86A]/15 text-[#A5B86A] border border-[#A5B86A]/30' },
+    'Offer-Sensitive':   { color: '#D5B66E', bg: 'bg-[#D5B66E]/15 text-[#D5B66E] border border-[#D5B66E]/30' },
+    'At-Risk Dormant':   { color: '#E8785A', bg: 'bg-[#E8785A]/20 text-[#FFA085] border border-[#E8785A]/40 font-bold' },
+    'Occasional Buyer':  { color: '#81966B', bg: 'bg-[#81966B]/15 text-[#A2B989] border border-[#81966B]/30' },
+  };
 
-  const handleNavClick = (e, targetTo) => {
-    // If navigating from Segmentation to Explorer, trigger the animated shatter transition
-    if (currentPath === '/segmentation' && targetTo === '/explorer') {
-      e.preventDefault();
-      if (onClose) onClose();
-      window.dispatchEvent(
-        new CustomEvent('retailiq-shatter-navigate', { detail: { targetUrl: '/explorer' } })
-      );
-      return;
-    }
+  // Build segment list dynamically from fetched profile data; show neutral placeholders while loading
+  const segmentCounts = sidebarStats?.segmentsSummary?.map((s) => ({
+    name: s.segment_name,
+    count: s.customer_count,
+    color: SEGMENT_STYLES[s.segment_name]?.color || '#A18A52',
+    bg: SEGMENT_STYLES[s.segment_name]?.bg || 'bg-[#A18A52]/15 text-[#A18A52] border border-[#A18A52]/30',
+  })) || Object.entries(SEGMENT_STYLES).map(([name, style]) => ({
+    name,
+    count: '—',
+    color: style.color,
+    bg: style.bg,
+  }));
+
+  const handleNavClick = () => {
     if (onClose) onClose();
   };
 
@@ -143,7 +140,7 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
                     key={item.to}
                     to={item.to}
                     end={item.to === '/'}
-                    onClick={(e) => handleNavClick(e, item.to)}
+                    onClick={handleNavClick}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group relative ${
                         isActive
@@ -187,7 +184,9 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
           <div>
             <div className="px-3 mb-2.5 flex items-center justify-between text-[10px] font-extrabold text-[#A18A52] uppercase tracking-widest">
               <span>Customer Clusters</span>
-              <span className="text-[#EAE7DB]/50 font-mono text-[10px]">200 Accounts</span>
+              <span className="text-[#EAE7DB]/50 font-mono text-[10px]">
+                {sidebarStats ? `${sidebarStats.totalCustomers} Accounts` : '— Accounts'}
+              </span>
             </div>
             <div className="space-y-1">
               {segmentCounts.map((seg) => (
@@ -227,7 +226,12 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
               </span>
             </div>
             <p className="text-[11px] text-[#EAE7DB]/90 leading-relaxed font-semibold">
-              <strong className="text-[#FFA085]">40 accounts ($852k revenue)</strong> currently in At-Risk dormancy. Immediate win-back mandated.
+              <strong className="text-[#FFA085]">
+                {sidebarStats
+                  ? `${sidebarStats.atRiskCustomers ?? '—'} accounts (${formatCompactCurrency(sidebarStats.atRiskRevenue)} revenue)`
+                  : '— accounts (— revenue)'}
+              </strong>{' '}
+              currently in At-Risk dormancy. Immediate win-back mandated.
             </p>
           </div>
         </div>
@@ -241,11 +245,17 @@ export default function Sidebar({ isOpen, onClose, currentPath }) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#A5B86A]"></span>
               </span>
               <span className="text-[11px] font-bold text-[#EAE7DB]">
-                Model: Candidate 1
+                Model: {sidebarStats?.modelManifest?.candidateSet || '—'}
               </span>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#A5B86A]/15 text-[#A5B86A] border border-[#A5B86A]/30 font-bold shadow-xs">
-              ARI: 1.00
+            <span
+              className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#A5B86A]/15 text-[#A5B86A] border border-[#A5B86A]/30 font-bold shadow-xs"
+              title="Clustering Stability Mean ARI across multiple random seeds. Distinct from post-hoc external persona validation ARI."
+            >
+              Stability ARI:{' '}
+              {sidebarStats?.modelManifest?.stabilityAri != null
+                ? sidebarStats.modelManifest.stabilityAri.toFixed(2)
+                : '—'}
             </span>
           </div>
         </div>

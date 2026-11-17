@@ -18,9 +18,10 @@ import { SegmentBadge, ScoreBadge } from '../components/common/Badge';
 import CustomerDrawer from '../components/common/CustomerDrawer';
 import {
   formatCurrency,
+  formatCompactCurrency,
   formatDays,
+  getCurrencyPrefix,
 } from '../utils/formatters';
-import { SEGMENTS } from '../utils/theme';
 
 export default function CustomerExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,6 +43,10 @@ export default function CustomerExplorer() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [segmentNames, setSegmentNames] = useState([]);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
+  const [overview, setOverview] = useState(null);
+  const currencyPrefix = getCurrencyPrefix();
 
   useEffect(() => {
     let active = true;
@@ -67,14 +72,55 @@ export default function CustomerExplorer() {
     };
   }, [search, segment, spendRange, recencyRange, sortBy, sortOrder, page, pageSize]);
 
-  // Handle URL sync
+  // Load segment names from the backend so the dropdown follows segmentProfiles.json.
+  useEffect(() => {
+    let active = true;
+    dataService.getSegmentProfiles()
+      .then((profiles) => {
+        if (!active) return;
+        const names = (Array.isArray(profiles) ? profiles : [])
+          .map((s) => s && s.segment_name)
+          .filter((name) => typeof name === 'string' && name.length > 0);
+        setSegmentNames(names);
+      })
+      .catch(() => {
+        if (active) setSegmentNames([]);
+      })
+      .finally(() => {
+        if (active) setProfilesLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    dataService.getOverviewStats()
+      .then((stats) => { if (active) setOverview(stats); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  // Handle URL sync against the backend-derived segment names. Unknown or
+  // missing segments fall back to 'All' so the select and filter stay in sync.
   useEffect(() => {
     const urlSeg = searchParams.get('segment');
-    if (urlSeg && urlSeg !== segment) {
-      setSegment(urlSeg);
+    if (urlSeg && segmentNames.includes(urlSeg)) {
+      if (urlSeg !== segment) {
+        setSegment(urlSeg);
+        setPage(1);
+      }
+      return;
+    }
+    if (profilesLoaded && segment !== 'All') {
+      setSegment('All');
       setPage(1);
     }
-  }, [searchParams]);
+    if (urlSeg && profilesLoaded) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, segmentNames, profilesLoaded, segment, setSearchParams]);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -165,8 +211,8 @@ export default function CustomerExplorer() {
               }}
               className="w-full px-3.5 py-2 bg-[#171a13] border border-[#A18A52]/30 rounded-xl text-xs text-[#EAE7DB] font-semibold focus:outline-none focus:ring-2 focus:ring-[#D5B66E]/50"
             >
-              <option value="All">All Segments (4)</option>
-              {Object.keys(SEGMENTS).map((s) => (
+              <option value="All">All Segments ({segmentNames.length})</option>
+              {segmentNames.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -185,9 +231,9 @@ export default function CustomerExplorer() {
               className="w-full px-3.5 py-2 bg-[#171a13] border border-[#A18A52]/30 rounded-xl text-xs text-[#EAE7DB] font-semibold focus:outline-none focus:ring-2 focus:ring-[#D5B66E]/50"
             >
               <option value="all">Spend: All Tiers</option>
-              <option value="high">High Spend (&gt; $30,000)</option>
-              <option value="medium">Mid Spend ($10k - $30k)</option>
-              <option value="low">Entry Spend (&lt; $10,000)</option>
+              <option value="high">High Spend (&gt; {currencyPrefix}30,000)</option>
+              <option value="medium">Mid Spend ({currencyPrefix}10k - {currencyPrefix}30k)</option>
+              <option value="low">Entry Spend (&lt; {currencyPrefix}10,000)</option>
             </select>
           </div>
 
@@ -231,11 +277,11 @@ export default function CustomerExplorer() {
         <div className="flex items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full bg-[#E8785A] animate-ping shrink-0" />
           <span className="text-[#FFA085] font-black tracking-wide uppercase">
-            ★ CRITICAL RETENTION DIRECTIVE: RED ROWS REPRESENT 40 AT-RISK DORMANT ACCOUNTS (&gt;90d INACTIVE) — PRIORITIZE EXECUTIVE WIN-BACK!
+            ★ CRITICAL RETENTION DIRECTIVE: RED ROWS REPRESENT {overview?.atRiskCustomers ?? '—'} AT-RISK DORMANT ACCOUNTS (&gt;90d INACTIVE) — PRIORITIZE EXECUTIVE WIN-BACK!
           </span>
         </div>
         <span className="text-[11px] font-black text-[#FFA085] font-mono hidden md:inline shrink-0">
-          $852k AT RISK
+          {overview?.atRiskRevenue != null ? formatCompactCurrency(overview.atRiskRevenue) : '—'} AT RISK
         </span>
       </div>
 

@@ -22,8 +22,8 @@ import {
 import dataService from '../services/dataService';
 import KpiCard from '../components/common/KpiCard';
 import CustomerDrawer from '../components/common/CustomerDrawer';
-import { formatCurrency } from '../utils/formatters';
-import { SEGMENTS, getSegmentStyle } from '../utils/theme';
+import { formatCurrency, formatCompactCurrency, getCurrencyPrefix } from '../utils/formatters';
+import { getSegmentStyle } from '../utils/theme';
 
 export default function RfmAnalysis() {
   const [loading, setLoading] = useState(true);
@@ -32,14 +32,20 @@ export default function RfmAnalysis() {
   const [scatterMode, setScatterMode] = useState('recency_monetary'); // 'recency_monetary' | 'frequency_monetary' | 'recency_frequency' | 'loyalty_sensitivity'
   const [selectedSegmentFilter, setSelectedSegmentFilter] = useState('All');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [segmentNames, setSegmentNames] = useState([]);
 
   useEffect(() => {
     async function loadData() {
       try {
         const dist = await dataService.getRfmDistribution();
         const customers = await dataService.getAllCustomers();
+        const profiles = await dataService.getSegmentProfiles();
+        const names = (Array.isArray(profiles) ? profiles : [])
+          .map((s) => s && s.segment_name)
+          .filter((name) => typeof name === 'string' && name.length > 0);
         setDistributionData(dist);
         setAllCustomers(customers);
+        setSegmentNames(names);
       } catch (err) {
         console.error('Failed to load RFM data:', err);
       } finally {
@@ -48,6 +54,13 @@ export default function RfmAnalysis() {
     }
     loadData();
   }, []);
+
+  // Keep the filter valid if backend segments change between runs.
+  useEffect(() => {
+    if (selectedSegmentFilter !== 'All' && !segmentNames.includes(selectedSegmentFilter)) {
+      setSelectedSegmentFilter('All');
+    }
+  }, [segmentNames, selectedSegmentFilter]);
 
   if (loading || !distributionData) {
     return (
@@ -60,6 +73,12 @@ export default function RfmAnalysis() {
     );
   }
 
+  const currencyPrefix = getCurrencyPrefix();
+  const monetaryAxisLabel = currencyPrefix
+    ? `Monetary Spend (${currencyPrefix})`
+    : 'Monetary Spend';
+  const monetarySelectLabel = currencyPrefix ? `Monetary (${currencyPrefix})` : 'Monetary';
+
   // Pre-process scatter plot coordinates based on selected axis mode
   const getScatterCoordinates = (customer) => {
     switch (scatterMode) {
@@ -68,7 +87,7 @@ export default function RfmAnalysis() {
           x: customer.frequency,
           y: customer.monetary,
           xName: 'Frequency (Orders)',
-          yName: 'Monetary Spend ($)',
+          yName: monetaryAxisLabel,
           xUnit: ' orders',
           yFormat: (v) => formatCurrency(v),
         };
@@ -96,7 +115,7 @@ export default function RfmAnalysis() {
           x: customer.recency_days,
           y: customer.monetary,
           xName: 'Recency (Days)',
-          yName: 'Monetary Spend ($)',
+          yName: monetaryAxisLabel,
           xUnit: 'd',
           yFormat: (v) => formatCurrency(v),
         };
@@ -169,7 +188,7 @@ export default function RfmAnalysis() {
           subtitle={`Range: ${formatCurrency(distributionData.stats.monetary.min)} to ${formatCurrency(distributionData.stats.monetary.max)}`}
           icon={DollarSign}
           variant="emerald"
-          trend="Cohort Total: $4.14M"
+          trend={`Cohort Total: ${formatCompactCurrency(allCustomers.reduce((sum, c) => sum + (c.monetary || 0), 0))}`}
           trendPositive={true}
           trendLabel="Total turnover"
         />
@@ -315,7 +334,7 @@ export default function RfmAnalysis() {
             </ResponsiveContainer>
           </div>
           <div className="text-[11px] text-[#303629] pt-2 border-t border-[#B99A55]/20 flex justify-between">
-            <span>&gt; $30k High Spend tier</span>
+            <span>&gt; {currencyPrefix}30k High Spend tier</span>
             <span className="font-extrabold text-[#059669]">50 Loyalists</span>
           </div>
         </div>
@@ -345,8 +364,8 @@ export default function RfmAnalysis() {
               onChange={(e) => setScatterMode(e.target.value)}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FFFFFF] border-2 border-[#B99A55]/40 text-[#1A1D16] focus:outline-none focus:ring-2 focus:ring-[#B99A55]"
             >
-              <option value="recency_monetary">Recency (Days) vs Monetary ($)</option>
-              <option value="frequency_monetary">Frequency (Orders) vs Monetary ($)</option>
+              <option value="recency_monetary">Recency (Days) vs {monetarySelectLabel}</option>
+              <option value="frequency_monetary">Frequency (Orders) vs {monetarySelectLabel}</option>
               <option value="recency_frequency">Recency (Days) vs Frequency (Orders)</option>
               <option value="loyalty_sensitivity">Offer Sensitivity vs Loyalty Score</option>
             </select>
@@ -357,8 +376,8 @@ export default function RfmAnalysis() {
               onChange={(e) => setSelectedSegmentFilter(e.target.value)}
               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FFFFFF] border-2 border-[#B99A55]/40 text-[#1A1D16] focus:outline-none focus:ring-2 focus:ring-[#B99A55]"
             >
-              <option value="All">All Segments (4)</option>
-              {Object.keys(SEGMENTS).map((s) => (
+              <option value="All">All Segments ({segmentNames.length})</option>
+              {segmentNames.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -391,7 +410,7 @@ export default function RfmAnalysis() {
                 type="number"
                 dataKey="y"
                 name={sampleCoord.yName}
-                tickFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : v)}
+                tickFormatter={(v) => (v >= 1000 ? `${currencyPrefix}${(v / 1000).toFixed(0)}k` : v)}
                 label={{
                   value: sampleCoord.yName,
                   angle: -90,
@@ -417,7 +436,7 @@ export default function RfmAnalysis() {
                   );
                 }}
               />
-              {Object.keys(SEGMENTS).map((segName) => {
+              {segmentNames.map((segName) => {
                 const segPoints = scatterPoints.filter((p) => p.segment === segName);
                 const colorConfig = {
                   'High-Value Loyal': '#059669',
@@ -430,7 +449,7 @@ export default function RfmAnalysis() {
                     key={segName}
                     name={segName}
                     data={segPoints}
-                    fill={colorConfig[segName] || '#8A6F27'}
+                    fill={colorConfig[segName] || getSegmentStyle(segName).color}
                     onClick={(entry) => setSelectedCustomer(entry.rawCustomer)}
                     cursor="pointer"
                   />

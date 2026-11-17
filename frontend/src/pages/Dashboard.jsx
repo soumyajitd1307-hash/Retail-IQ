@@ -67,6 +67,7 @@ const SEGMENT_CHART_COLORS = {
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [stats, setStats] = useState(null);
   const [segmentData, setSegmentData] = useState([]);
   const [activeTab, setActiveTab] = useState('revenue');
@@ -81,6 +82,9 @@ export default function Dashboard() {
         setSegmentData(profiles);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
+        setStats(null);
+        setSegmentData([]);
+        setError(true);
       } finally {
         setLoading(false);
       }
@@ -88,12 +92,22 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  if (loading || !stats) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-[#D5B66E] border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-semibold text-[#EAE7DB]/70">Loading Executive Analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-xs font-semibold text-[#EAE7DB]/70">Analytics data is currently unavailable.</p>
         </div>
       </div>
     );
@@ -138,6 +152,9 @@ export default function Dashboard() {
     };
   });
 
+  // Persona-specific KPI: intentionally tied to the At-Risk Dormant label.
+  const atRiskProfile = segmentData.find((s) => s.segment_name === 'At-Risk Dormant');
+
   return (
     <div className="space-y-6">
       {/* Top Banner: Synthetic Cohort Context */}
@@ -150,7 +167,7 @@ export default function Dashboard() {
             {/* Priority Alert Pill */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8785A]/15 text-[#FFA085] text-xs font-black border border-[#E8785A]/35 backdrop-blur-xs shadow-xs">
               <span className="w-2 h-2 rounded-full bg-[#E8785A] animate-ping" />
-              <span>★ CRITICAL PORTFOLIO ALERT: $852,261 IN 40 ACCOUNTS AT DIRECT CHURN HORIZON</span>
+              <span>★ CRITICAL PORTFOLIO ALERT: {formatCurrency(stats.atRiskRevenue).toUpperCase()} IN {stats.atRiskCustomers ?? '—'} ACCOUNTS AT DIRECT CHURN HORIZON</span>
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#EAE7DB]">
@@ -158,7 +175,7 @@ export default function Dashboard() {
             </h2>
 
             <p className="text-xs sm:text-sm text-[#EAE7DB]/75 leading-relaxed font-medium">
-              Enterprise behavioral analytics across 200 customer accounts. <strong className="text-[#D5B66E]">59.7% of cumulative revenue</strong> is anchored in 50 High-Value Loyalists, while <strong className="text-[#FFA085]">20% of cohort</strong> requires urgent win-back activation.
+              Enterprise behavioral analytics across {stats.totalCustomers} customer accounts. <strong className="text-[#D5B66E]">{stats.topSegment?.pct_of_revenue ?? '—'}% of cumulative revenue</strong> is anchored in {stats.topSegment?.customer_count ?? '—'} {stats.topSegment?.segment_name || '—'} accounts, while <strong className="text-[#FFA085]">{atRiskProfile?.pct_of_customers ?? '—'}% of cohort</strong> requires urgent win-back activation.
             </p>
           </div>
 
@@ -167,7 +184,7 @@ export default function Dashboard() {
               to="/explorer"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-gold text-xs font-bold transition-all shadow-lg shadow-black/40"
             >
-              Explore 200 Customers
+              Explore {stats.totalCustomers} Customers
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -182,9 +199,9 @@ export default function Dashboard() {
           subtitle="Fixed snapshot cohort"
           icon={Users}
           variant="gold"
-          trend="100% Active Cohort"
+          trend="Cohort Snapshot"
           trendPositive={true}
-          trendLabel="200 accounts"
+          trendLabel={`${stats.totalCustomers} accounts`}
         />
 
         <KpiCard
@@ -193,7 +210,7 @@ export default function Dashboard() {
           subtitle="Exact monetary reconciliation"
           icon={DollarSign}
           variant="emerald"
-          trend="+59.7% Loyal Share"
+          trend={`+${stats.topSegment?.pct_of_revenue ?? '—'}% Share`}
           trendPositive={true}
           trendLabel="Anchor spend"
         />
@@ -212,10 +229,10 @@ export default function Dashboard() {
         <KpiCard
           title="At-Risk Revenue"
           value={formatCurrency(stats.atRiskRevenue)}
-          subtitle={`${stats.atRiskCustomers} dormant customers (>90d)`}
+          subtitle={`${stats.atRiskCustomers ?? '—'} dormant customers (>90d)`}
           icon={AlertTriangle}
           variant="rose"
-          trend="-88.2% Spend Trend"
+          trend={`${atRiskProfile?.mean_spend_trend?.toFixed(1) ?? '—'}% Spend Trend`}
           trendPositive={false}
           trendLabel="Immediate win-back"
         />
@@ -380,7 +397,7 @@ export default function Dashboard() {
                   : `${stats.totalCustomers} Accounts`}
               </motion.span>
               <span className="text-[10px] font-bold text-[#303629]/70 uppercase tracking-wider">
-                {activeTab === 'revenue' ? '100% Reconciled' : 'Candidate 1 (RFM-P)'}
+                {activeTab === 'revenue' ? '100% Reconciled' : stats.modelManifest?.candidateSet || '—'}
               </span>
             </div>
           </div>
@@ -555,10 +572,18 @@ export default function Dashboard() {
             <div className="text-[#303629] space-y-0.5">
               <div className="text-[#8A6F27] font-black text-xs uppercase tracking-wide flex items-center gap-1.5">
                 <span>★ CRITICAL PARETO DIRECTIVE:</span>
-                <span className="underline decoration-[#B99A55] underline-offset-2">59.7% of Revenue Anchored in 50 Accounts</span>
+                <span className="underline decoration-[#B99A55] underline-offset-2">
+                  {stats.topSegment?.pct_of_revenue ?? '—'}% of Revenue Anchored in {stats.topSegment?.customer_count ?? '—'} Accounts
+                </span>
               </div>
               <p className="text-[11px] font-semibold text-[#1A1D16] leading-relaxed">
-                High-Value Loyal accounts represent <strong>25.0%</strong> of customers but generate <strong>59.7%</strong> of total company spend ($2,471,110.56). <span className="text-[#BE123C] font-black">Strictly guard gross margins against discount erosion</span> on full-price buyers.
+                {stats.topSegment?.segment_name || '—'} accounts represent{' '}
+                <strong>{stats.topSegment?.pct_of_customers ?? '—'}%</strong> of customers but generate{' '}
+                <strong>{stats.topSegment?.pct_of_revenue ?? '—'}%</strong> of total company spend (
+                {formatCurrency(stats.topSegment?.total_revenue)}
+                ).{' '}
+                <span className="text-[#BE123C] font-black">Strictly guard gross margins against discount erosion</span>{' '}
+                on full-price buyers.
               </p>
             </div>
           </div>
@@ -573,7 +598,7 @@ export default function Dashboard() {
               The Four Behavioral Segments
             </h3>
             <p className="text-xs text-[#D5B66E] font-bold">
-              ★ CLUSTERING GROUND-TRUTH: K-Means Candidate 1 (Classic RFM-P) at K = 4 (Silhouette: 0.581, Stability ARI: 1.00)
+              ★ CLUSTERING GROUND-TRUTH: K-Means {stats.modelManifest?.candidateSet || '—'} at K = {stats.modelManifest?.clusters ?? '—'} (Silhouette: {stats.modelManifest?.selectedSilhouette != null ? Number(stats.modelManifest.selectedSilhouette).toFixed(3) : '—'}, Stability ARI: {stats.modelManifest?.stabilityAri != null ? Number(stats.modelManifest.stabilityAri).toFixed(2) : '—'})
             </p>
           </div>
           <Link
